@@ -45,10 +45,10 @@ export default function AppShell() {
     <div className="grid h-dvh grid-rows-[64px_1fr] bg-bg">
       {/* Top navigation. Buttons, not a sidebar — every destination is one click away, always visible. */}
       <header className="sticky top-0 z-20 border-b border-line bg-surface/95 backdrop-blur">
-        {/* Three zones: identity left, destinations centred, working context + account right.
-            The flanks share flex-1 so the nav sits optically centred regardless of their width. */}
-        <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-4 px-4">
-          <div className="flex flex-1 justify-start">
+        {/* Three zones spread across the full width: identity left, destinations centre,
+            working context + account right. */}
+        <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between gap-4 px-4">
+          <div className="flex justify-start">
             <NavLink to="/app" className="flex shrink-0 items-center gap-2">
               <span className="grid size-8 place-items-center rounded bg-ink font-pixel text-sm text-bg">S</span>
               <span className="hidden font-display text-[15px] font-bold tracking-wide sm:inline">SAGARNETRA</span>
@@ -70,7 +70,7 @@ export default function AppShell() {
             )}
           </nav>
 
-          <div className="flex flex-1 items-center justify-end gap-3">
+          <div className="flex items-center justify-end gap-3">
             <div className="hidden items-center gap-3 lg:flex">
               <Dot ok={h ? h.model !== 'missing' : null} label="model" detail={h?.model ?? 'checking'} />
               <Dot ok={h ? h.database !== 'disconnected' : null} label="db" detail={h?.database ?? 'checking'} />
