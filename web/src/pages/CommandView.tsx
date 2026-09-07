@@ -186,7 +186,7 @@ function SectorGlobe({ sectors, selectedId, onSelect }: {
   }, [])
 
   return (
-    <div className="relative aspect-square w-full select-none">
+    <div className="relative aspect-square h-full max-h-full select-none">
       <canvas ref={canvasRef} onPointerDown={onPointerDown} onDoubleClick={() => onSelect(null)} className="size-full"
         style={{ contain: 'layout paint size', cursor: 'grab', touchAction: 'none', opacity: ready ? 1 : 0, transition: 'opacity 900ms ease' }}
         aria-label={`Globe of ${placed.length} coastal sectors`} />
