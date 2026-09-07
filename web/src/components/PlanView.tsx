@@ -20,6 +20,23 @@ const TYPE_COLOR: Record<VesselType, string> = {
 }
 
 /**
+ * Hull silhouette seen from above: pointed bow, flared shoulders, flat stern. Rotated to the
+ * course over ground, so a glance gives both position and heading — heading is evidence here,
+ * and a dot cannot carry it. Shared with RealMap and the map legend so all three agree.
+ */
+export const HULL = 'M0,-12 C3,-8 5.2,-3.5 5.2,1.5 L5.2,8.5 C5.2,10.2 3.6,11 0,11 C-3.6,11 -5.2,10.2 -5.2,8.5 L-5.2,1.5 C-5.2,-3.5 -3,-8 0,-12 Z'
+
+/** The same hull at legend size, so the key matches what is on the map. */
+export function ShipGlyph({ color, dark = false }: { color: string; dark?: boolean }) {
+  return (
+    <svg width="11" height="11" viewBox="-13 -13 26 26" aria-hidden className="shrink-0">
+      <path d={HULL} fill={dark ? 'none' : color} fillOpacity={0.95} stroke={color} strokeWidth={2}
+        strokeLinejoin="round" strokeDasharray={dark ? '4 3' : undefined} />
+    </svg>
+  )
+}
+
+/**
  * 2D plan view of an incident: slick polygon, origin ellipses, vessels and one highlighted track.
  * Stands in for the Cesium globe until it lands (week 4) and stays as the mini-map in Investigation.
  */
@@ -114,7 +131,8 @@ export default function PlanView({
           <g key={v.mmsi} transform={`translate(${x},${y})`} onClick={onSelect ? () => onSelect(v.mmsi) : undefined} style={{ cursor: onSelect ? 'pointer' : 'default' }}>
             {v.selected && <circle r={16} fill="none" stroke="#14100c" strokeWidth={2} />}
             <g transform={`rotate(${v.cog})`}>
-              <path d="M0,-11 L7,9 L0,5 L-7,9 Z" fill={v.dark ? '#f4f2ef' : c} stroke={c} strokeWidth={v.dark ? 2 : 1} />
+              <path d={HULL} fill={v.dark ? '#f4f2ef' : c} stroke={c} strokeWidth={v.dark ? 2 : 1}
+                strokeLinejoin="round" strokeDasharray={v.dark ? '4 3' : undefined} />
             </g>
             <text x={12} y={-8} fill="#5b564f" fontFamily="IBM Plex Mono, monospace" fontSize={14}>{v.name}</text>
           </g>

@@ -1,9 +1,10 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { CircleMarker, MapContainer, Polygon, Polyline, ScaleControl, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, Polygon, Polyline, ScaleControl, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
+import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { ellipsePoints } from '../lib/geo'
 import type { LonLat, OriginZone, VesselType } from '../lib/types'
-import type { PlanTrack, PlanVessel } from './PlanView'
+import { HULL, type PlanTrack, type PlanVessel } from './PlanView'
 
 type Basemap = 'satellite' | 'streets'
 
@@ -28,6 +29,31 @@ const TYPE_COLOR: Record<VesselType, string> = {
 }
 /** Leaflet takes [lat, lon]; our data is [lon, lat] throughout. */
 const ll = ([lon, lat]: LonLat): [number, number] => [lat, lon]
+
+/**
+ * A ship, drawn and pointed the way it is steaming — a dot cannot show heading, and heading is
+ * evidence here. Dark (AIS-gap) vessels render hollow with a dashed hull, matching PlanView.
+ */
+function shipIcon(v: PlanVessel, onImagery: boolean) {
+  const c = TYPE_COLOR[v.type]
+  const stroke = v.dark ? '#c7301f' : c
+  const fill = v.dark ? 'none' : c
+  // a light casing keeps the hull legible over both dark satellite water and the pale street map
+  const casing = onImagery ? '#f4f2ef' : '#ffffff'
+  return L.divIcon({
+    className: '',
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    html: `<svg width="34" height="34" viewBox="-17 -17 34 34" style="overflow:visible">
+      ${v.selected ? `<circle r="14" fill="none" stroke="${casing}" stroke-width="4" opacity="0.55"/><circle r="14" fill="none" stroke="#14100c" stroke-width="2"/>` : ''}
+      <g transform="rotate(${v.cog.toFixed(1)})">
+        <path d="${HULL}" fill="none" stroke="${casing}" stroke-width="4.5" stroke-linejoin="round" opacity="0.75"/>
+        <path d="${HULL}" fill="${fill}" fill-opacity="${v.dark ? 0 : 0.95}" stroke="${stroke}" stroke-width="1.8"
+              stroke-linejoin="round" ${v.dark ? 'stroke-dasharray="4 3"' : ''}/>
+      </g>
+    </svg>`,
+  })
+}
 
 interface Cursor { lat: number; lon: number; zoom: number }
 
@@ -167,22 +193,17 @@ export default function RealMap({
         </>
       )}
 
-      {/* vessels */}
+      {/* vessels, as hulls pointed along their course */}
       {vessels.map((v) => (
-        <CircleMarker
+        <Marker
           key={v.mmsi}
-          center={ll(v.position)}
-          radius={v.selected ? 8 : 6}
-          pathOptions={{
-            color: TYPE_COLOR[v.type],
-            weight: v.selected ? 3 : v.dark ? 2 : 1.5,
-            fillColor: v.dark ? '#f4f2ef' : TYPE_COLOR[v.type],
-            fillOpacity: v.dark ? 0.4 : 0.9,
-          }}
+          position={ll(v.position)}
+          icon={shipIcon(v, basemap === 'satellite')}
+          zIndexOffset={v.selected ? 1000 : 0}
           eventHandlers={onSelect ? { click: () => onSelect(v.mmsi) } : undefined}
         >
-          <Tooltip direction="top" offset={[0, -6]} className="!font-mono !text-[11px]">{v.name}</Tooltip>
-        </CircleMarker>
+          <Tooltip direction="top" offset={[0, -14]} className="!font-mono !text-[11px]">{v.name}</Tooltip>
+        </Marker>
       ))}
       </MapContainer>
 

@@ -7,7 +7,7 @@ import { positionAt } from '../lib/geo'
 import { fmtCoord, fmtUtc, TYPE_LABEL } from '../lib/format'
 import { useUi } from '../store/ui'
 import { cn } from '../lib/cn'
-import PlanView, { type PlanVessel } from '../components/PlanView'
+import PlanView, { ShipGlyph, type PlanVessel } from '../components/PlanView'
 import RealMap from '../components/RealMap'
 import { Spinner, TierChip } from '../components/Primitives'
 
@@ -49,7 +49,7 @@ export default function LiveMap() {
         </button>
         <button type="button" onClick={() => setMode('map')}
           className={cn('flex items-center gap-1.5 rounded px-2.5 py-1.5 font-medium', mode === 'map' ? 'bg-ink text-bg' : 'text-ink-2 hover:text-ink')}
-          title="Real coordinates on OpenStreetMap tiles. Needs network access.">
+          title="Real satellite imagery on true coordinates. Needs network access.">
           <MapIcon className="size-3.5" /> Map view
         </button>
       </div>
@@ -96,9 +96,9 @@ export default function LiveMap() {
       <div className="absolute bottom-4 left-4 z-[500] rounded-md border border-line bg-surface/90 p-3 text-[11px] backdrop-blur">
         <div className="label-caps mb-1">Vessel type</div>
         {Object.entries({ tanker: '#ff6803', cargo: '#1e6b74', fishing: '#7c8a3d', passenger: '#8a5fa8', tug: '#928c83' }).map(([k, c]) => (
-          <div key={k} className="flex items-center gap-2 text-ink-2"><span className="size-2 rounded-sm" style={{ background: c }} />{TYPE_LABEL[k]}</div>
+          <div key={k} className="flex items-center gap-2 text-ink-2"><ShipGlyph color={c} />{TYPE_LABEL[k]}</div>
         ))}
-        <div className="mt-1 flex items-center gap-2 text-ink-2"><span className="size-2 rounded-sm border border-crit" />AIS dark</div>
+        <div className="mt-1 flex items-center gap-2 text-ink-2"><ShipGlyph color="#c7301f" dark />AIS dark</div>
       </div>
     </div>
   )
