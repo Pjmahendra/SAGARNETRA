@@ -78,6 +78,7 @@ class ZoneOut(BaseModel):
     name: str
     region: Region
     geometry: dict[str, Any] | None = None
+    center: list[float] | None = None  # [lon, lat] centroid of geometry; lets the console orient a map on the zone
     last_scene_at: datetime | None = None
     vessels_now: int = 0
 

@@ -24,12 +24,16 @@ function features(f: FeatIn): { features: FeatureContribution[]; score: number; 
 }
 
 // ---- users ----
+// region/zone_ids mirror backend/scripts/seed_db.py exactly: an officer's sector is their
+// zone_ids, not their region -- region ("North-West" here) can genuinely disagree with the
+// zones they're posted to (temporary postings), which is deliberate, not a data bug.
 export const USERS: (AdminUser & { password: string })[] = [
-  { id: 'u-admin', email: 'admin@sagarnetra.in', password: 'Admin@123', name: 'Cmdt. R. Iyer', role: 'admin', org: 'ICG HQ, New Delhi', active: true, created_at: '2026-09-01T09:00:00Z', last_login: '2026-09-07T04:12:00Z' },
-  { id: 'u-off1', email: 'officer@sagarnetra.in', password: 'Officer@123', name: 'Lt. A. Menon', role: 'officer', org: 'ICG Region West, Porbandar', active: true, created_at: '2026-09-01T09:05:00Z', last_login: '2026-09-07T05:40:00Z' },
-  { id: 'u-off2', email: 's.rao@sagarnetra.in', password: 'Officer@123', name: 'Lt. S. Rao', role: 'officer', org: 'ICG Region East, Chennai', active: false, created_at: '2026-09-02T11:30:00Z', last_login: null },
+  { id: 'u-admin', email: 'admin@sagarnetra.in', password: 'Admin@123', name: 'Cmdt. R. Iyer', role: 'admin', org: 'ICG HQ, New Delhi', region: null, zone_ids: [], active: true, created_at: '2026-09-01T09:00:00Z', last_login: '2026-09-07T04:12:00Z' },
+  { id: 'u-off1', email: 'officer@sagarnetra.in', password: 'Officer@123', name: 'Lt. A. Menon', role: 'officer', org: 'ICG Region West, Porbandar', region: 'North-West', zone_ids: ['z-guj', 'z-mum'], active: true, created_at: '2026-09-01T09:05:00Z', last_login: '2026-09-07T05:40:00Z' },
+  { id: 'u-off2', email: 's.rao@sagarnetra.in', password: 'Officer@123', name: 'Lt. S. Rao', role: 'officer', org: 'ICG Region East, Chennai', region: 'East', zone_ids: ['z-che'], active: false, created_at: '2026-09-02T11:30:00Z', last_login: null },
 ]
-export const publicUser = (u: AdminUser & { password: string }): User => ({ id: u.id, email: u.email, name: u.name, role: u.role, org: u.org })
+export const publicUser = (u: AdminUser & { password: string }): User =>
+  ({ id: u.id, email: u.email, name: u.name, role: u.role, org: u.org, region: u.region, zone_ids: u.zone_ids })
 
 // ---- demo geography: Gujarat offshore lane, off Saurashtra ----
 const ACQ = '2026-09-06T01:12:00Z'
@@ -127,9 +131,9 @@ export const OVERVIEW: Overview = {
   area_km2_this_month: 11.74,
   vessels_tracked: 143,
   zones: [
-    { id: 'z-guj', name: 'Gujarat Offshore Lane', last_scene_at: ACQ, vessels_now: 61 },
-    { id: 'z-mum', name: 'Mumbai Approaches', last_scene_at: '2026-09-04T01:05:00Z', vessels_now: 58 },
-    { id: 'z-che', name: 'Chennai–Ennore', last_scene_at: '2026-09-05T00:31:00Z', vessels_now: 24 },
+    { id: 'z-guj', name: 'Gujarat Offshore Lane', center: [69.4, 21.15], last_scene_at: ACQ, vessels_now: 61 },
+    { id: 'z-mum', name: 'Mumbai Approaches', center: [72.65, 18.85], last_scene_at: '2026-09-04T01:05:00Z', vessels_now: 58 },
+    { id: 'z-che', name: 'Chennai–Ennore', center: [80.55, 13.2], last_scene_at: '2026-09-05T00:31:00Z', vessels_now: 24 },
   ],
   recent: [
     { id: 'a1', at: '2026-09-07T05:40:00Z', who: 'Lt. A. Menon', what: 'signed in' },
@@ -173,8 +177,29 @@ export const DETECT_RESULTS: Record<string, DetectResult> = {
 }
 
 export const REPORTS: Report[] = [
-  { id: 'rep-2', incident_code: 'INC-2026-041', generated_by: 'Lt. A. Menon', generated_at: '2026-09-06T06:32:00Z', pages: 6 },
-  { id: 'rep-1', incident_code: 'INC-2026-040', generated_by: 'Lt. A. Menon', generated_at: '2026-08-30T10:04:00Z', pages: 5 },
+  {
+    id: 'rep-2', incident_id: INCIDENT_DETAIL.id, incident_code: 'INC-2026-041', revision: 1,
+    generated_by: 'Lt. A. Menon', generated_at: '2026-09-06T06:32:00Z',
+    snapshot: {
+      zone: INCIDENT_DETAIL.zone, detected_at: INCIDENT_DETAIL.detected_at, area_km2: INCIDENT_DETAIL.area_km2,
+      confidence: INCIDENT_DETAIL.confidence, engine: INCIDENT_DETAIL.engine, scene: INCIDENT_DETAIL.scene,
+      centroid: INCIDENT_DETAIL.centroid, status: INCIDENT_DETAIL.status, is_demo: INCIDENT_DETAIL.is_demo,
+      ranked_count: RANKING.length, candidates_considered: 8, top_vessel: RANKING[0].name, top_mmsi: RANKING[0].mmsi,
+      top_score: RANKING[0].score, top_tier: RANKING[0].tier, weather_source: 'open-meteo',
+      hashes: INCIDENT_DETAIL.hashes,
+    },
+  },
+  {
+    id: 'rep-1', incident_id: 'inc-040', incident_code: 'INC-2026-040', revision: 1,
+    generated_by: 'Lt. A. Menon', generated_at: '2026-08-30T10:04:00Z',
+    snapshot: {
+      zone: 'Mumbai Approaches', detected_at: '2026-08-29T01:05:00Z', area_km2: 1.37, confidence: 0.64,
+      engine: 'heuristic', scene: 'S1A_IW_GRDH_1SDV_20260829T010512_20260829T010537_060295_0785F1_4F91',
+      centroid: [72.61, 18.84], status: 'closed', is_demo: true, ranked_count: 1, candidates_considered: 3,
+      top_vessel: 'MV WESTERN GLORY', top_mmsi: '419009012', top_score: 41, top_tier: 'poi', weather_source: 'open-meteo',
+      hashes: { tile_sha256: 'b7e2c1a9f4d0e3c6a8b1f2d4e6c8a0b2d4f6e8c0a2b4d6f8e0c2a4b6d8f0e2c4' },
+    },
+  },
 ]
 
 export const AUDIT: AuditEntry[] = [

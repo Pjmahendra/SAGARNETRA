@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowRight, Crosshair, MapPin } from 'lucide-react'
+import { useAuth } from '../auth/store'
 import { api } from '../lib/api'
 import { fmtAgo, fmtKm2, fmtUtc } from '../lib/format'
 import { cn } from '../lib/cn'
@@ -21,6 +22,8 @@ const SECTIONS = [
 ] as const
 
 export default function Dashboard() {
+  const navigate = useNavigate()
+  const { user } = useAuth()
   const overview = useQuery({ queryKey: ['overview'], queryFn: api.overview })
   const incidents = useQuery({ queryKey: ['incidents'], queryFn: api.incidents })
   const o = overview.data
@@ -30,6 +33,15 @@ export default function Dashboard() {
   const all = incidents.data ?? []
   const selected = all.find((i) => i.id === selectedId) ?? null
   const zoneOf = (name: string) => o?.zones.find((z) => z.name === name) ?? null
+
+  // The header's Zone selector scopes this whole page: the globe and the incident lists below
+  // only ever show this zone's slicks. An officer's dropdown is already restricted to their own
+  // sector (AppShell), so for them this is always their sector; admins can scope to any zone.
+  const activeZone = o?.zones.find((z) => z.id === zoneId) ?? null
+  const inZone = activeZone ? all.filter((i) => i.zone === activeZone.name) : all
+  // Only an officer with an assigned sector gets the "hold here, don't free-spin" globe
+  // behaviour — an admin's view stays the unrestricted, idle-spinning one it always was.
+  const homeCenter = user?.role === 'officer' && (user.zone_ids?.length ?? 0) > 0 ? (activeZone?.center ?? null) : null
 
   // Section nav: buttons jump between the page's boxes instead of scrolling to find them.
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
@@ -97,7 +109,14 @@ export default function Dashboard() {
           {/* The globe is the first thing an officer should see, full width; key metrics
               follow right below it. */}
           <Panel
-            title="Where the slicks are"
+            title={
+              <span className="flex flex-wrap items-center gap-2">
+                <h3 className="text-[15px] font-semibold tracking-wide text-ink">Where the slicks are</h3>
+                {activeZone && (
+                  <span className="rounded-full bg-surface-2 px-2 py-0.5 font-mono text-[11px] font-normal text-ink-2">{activeZone.name}</span>
+                )}
+              </span>
+            }
             id="globe"
             ref={setSectionRef('globe')}
             actions={
@@ -106,7 +125,7 @@ export default function Dashboard() {
                   Clear selection
                 </button>
               ) : (
-                <span className="font-mono text-[11px] text-ink-3">click a dot to select a locality</span>
+                <span className="font-mono text-[11px] text-ink-3">click a dot to zoom in and open it</span>
               )
             }
             bodyClassName="p-0"
@@ -116,7 +135,14 @@ export default function Dashboard() {
                 {!incidents.data ? (
                   <div className="grid aspect-square place-items-center"><Spinner /></div>
                 ) : (
-                  <SpillGlobe incidents={all} selectedId={selectedId} onSelect={selectIncident} />
+                  <SpillGlobe
+                    incidents={inZone}
+                    selectedId={selectedId}
+                    onSelect={selectIncident}
+                    onZoomedIn={(id) => navigate(`/app/incidents/${id}`)}
+                    homeCenter={homeCenter}
+                    homeLabel={activeZone?.name}
+                  />
                 )}
               </div>
 
@@ -191,25 +217,30 @@ export default function Dashboard() {
                         <Crosshair className="size-3" /> No locality selected
                       </div>
                       <p className="mt-2 max-w-[42ch] text-sm text-ink-2">
-                        Every pulsing dot is a slick we detected in radar. Click one to pull up where it is, how big it is, and which
-                        vessel is currently the strongest lead.
+                        {inZone.length > 0
+                          ? 'Every pulsing dot is a satellite oil-spill detection in this zone. Click one to zoom all the way in and open its investigation.'
+                          : `No slicks detected in ${activeZone?.name ?? 'this zone'} yet.`}
                       </p>
-                      <ul className="mt-4 divide-y divide-line rounded-md border border-line">
-                        {all.slice(0, 4).map((i) => (
-                          <li key={i.id}>
-                            <button
-                              type="button"
-                              onClick={() => selectIncident(i.id)}
-                              className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-2/60"
-                            >
-                              <span className="font-mono text-xs text-ink-2">{i.code}</span>
-                              <span className="min-w-0 flex-1 truncate text-sm">{i.zone}</span>
-                              <span className="font-mono text-xs text-ink-3">{fmtKm2(i.area_km2)}</span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                      <p className="mt-3 text-xs text-ink-3">Drag the globe to spin it. Double-click to reset.</p>
+                      {inZone.length > 0 && (
+                        <ul className="mt-4 divide-y divide-line rounded-md border border-line">
+                          {inZone.slice(0, 4).map((i) => (
+                            <li key={i.id}>
+                              <button
+                                type="button"
+                                onClick={() => selectIncident(i.id)}
+                                className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-2/60"
+                              >
+                                <span className="font-mono text-xs text-ink-2">{i.code}</span>
+                                <span className="min-w-0 flex-1 truncate text-sm">{i.zone}</span>
+                                <span className="font-mono text-xs text-ink-3">{fmtKm2(i.area_km2)}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <p className="mt-3 text-xs text-ink-3">
+                        {homeCenter ? 'Drag the globe to look around your sector.' : 'Drag the globe to spin it. Double-click to reset.'}
+                      </p>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -225,10 +256,25 @@ export default function Dashboard() {
           </div>
 
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-            <Panel id="incidents" ref={setSectionRef('incidents')} title="Open incidents" actions={<Link to="/app/incidents" className="text-xs text-sea hover:underline">All incidents</Link>} bodyClassName="p-0">
-              {!incidents.data ? <div className="p-4"><Spinner /></div> : incidents.data.filter((i) => i.status !== 'closed').length === 0 ? <div className="p-4"><Empty title="No open incidents" /></div> : (
+            <Panel
+              id="incidents"
+              ref={setSectionRef('incidents')}
+              title={
+                <span className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-[15px] font-semibold tracking-wide text-ink">Open incidents</h3>
+                  {activeZone && (
+                    <span className="rounded-full bg-surface-2 px-2 py-0.5 font-mono text-[11px] font-normal text-ink-2">{activeZone.name}</span>
+                  )}
+                </span>
+              }
+              actions={<Link to="/app/incidents" className="text-xs text-sea hover:underline">All incidents</Link>}
+              bodyClassName="p-0"
+            >
+              {!incidents.data ? <div className="p-4"><Spinner /></div> : inZone.filter((i) => i.status !== 'closed').length === 0 ? (
+                <div className="p-4"><Empty title="No open incidents" hint={activeZone ? `in ${activeZone.name}` : undefined} /></div>
+              ) : (
                 <ul className="divide-y divide-line">
-                  {incidents.data.filter((i) => i.status !== 'closed').map((i) => (
+                  {inZone.filter((i) => i.status !== 'closed').map((i) => (
                     <li key={i.id} className={i.id === selectedId ? 'bg-surface-2/50' : undefined}>
                       <div className="flex items-stretch">
                         <button

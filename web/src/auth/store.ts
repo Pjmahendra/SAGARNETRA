@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { api, tokenStore } from '../lib/api'
 import type { Role, User } from '../lib/types'
+import { useUi } from '../store/ui'
 
 interface AuthState {
   user: User | null
@@ -10,6 +11,12 @@ interface AuthState {
   restore: () => Promise<void>
 }
 
+// An officer's sector is their zone_ids; land them on it, not on whatever the last session's
+// zone happened to be. Admins have none, so leave the zone selector wherever it already is.
+const landOnHomeSector = (user: User) => {
+  if (user.zone_ids.length > 0) useUi.getState().setZone(user.zone_ids[0])
+}
+
 export const useAuth = create<AuthState>((set) => ({
   user: null,
   status: 'idle',
@@ -17,6 +24,7 @@ export const useAuth = create<AuthState>((set) => ({
     const res = await api.login(email, password)
     tokenStore.set(res.access_token)
     set({ user: res.user, status: 'ready' })
+    landOnHomeSector(res.user)
     return res.user
   },
   logout() {
@@ -30,6 +38,7 @@ export const useAuth = create<AuthState>((set) => ({
     try {
       const user = await api.me()
       set({ user, status: 'ready' })
+      landOnHomeSector(user)
     } catch {
       tokenStore.clear()
       set({ user: null, status: 'ready' })

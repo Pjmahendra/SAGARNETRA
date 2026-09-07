@@ -13,6 +13,18 @@ from ..services import audit, users
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
+def _centroid(geometry: dict) -> list[float] | None:
+    """Average of a GeoJSON Polygon's outer-ring vertices, minus the closing duplicate. Good
+    enough for the console's watch-zone rectangles; not a true area-weighted centroid."""
+    ring = (geometry.get("coordinates") or [[]])[0]
+    pts = ring[:-1] if len(ring) > 1 and ring[0] == ring[-1] else ring
+    if not pts:
+        return None
+    lon = sum(p[0] for p in pts) / len(pts)
+    lat = sum(p[1] for p in pts) / len(pts)
+    return [round(lon, 5), round(lat, 5)]
+
+
 @router.get("/users", response_model=list[AdminUserOut])
 async def list_users(_: Admin, db: Db):
     docs = await db.users.find().sort("created_at", 1).to_list(500)
@@ -89,6 +101,7 @@ async def create_zone(body: ZoneIn, admin: Admin, db: Db):
         "name": body.name,
         "region": body.region,
         "geometry": g,
+        "center": _centroid(g),
         "last_scene_at": None,
         "vessels_now": 0,
         "created_by": admin["_id"],

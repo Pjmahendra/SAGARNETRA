@@ -1,4 +1,5 @@
 export type Role = 'admin' | 'officer'
+export type Region = 'West' | 'North-West' | 'East' | 'North-East' | 'A&N'
 
 export interface User {
   id: string
@@ -6,6 +7,9 @@ export interface User {
   name: string
   role: Role
   org: string
+  /** An officer's home sector: the region they're posted to and the watch zones they cover. Null/empty for admin. */
+  region: Region | null
+  zone_ids: string[]
 }
 
 export interface LoginResponse {
@@ -25,6 +29,8 @@ export type LonLat = [number, number]
 export interface ZoneStatus {
   id: string
   name: string
+  /** [lon, lat] centroid of the zone's geometry — lets the console orient a map on it. */
+  center: LonLat
   last_scene_at: string | null
   vessels_now: number
 }
@@ -170,12 +176,34 @@ export interface ModelInfo {
   metrics: { name: string; miou: number; iou: Record<string, number>; params_m?: number; cpu_ms?: number }[]
 }
 
+export interface ReportSnapshot {
+  zone: string
+  detected_at: string
+  area_km2: number
+  confidence: number
+  engine: Engine
+  scene: string
+  centroid: LonLat
+  status: IncidentStatus
+  is_demo: boolean
+  ranked_count: number
+  candidates_considered: number | null
+  top_vessel: string | null
+  top_mmsi: string | null
+  top_score: number | null
+  top_tier: Tier | null
+  weather_source?: 'open-meteo' | 'fallback'
+  hashes: { tile_sha256?: string; mask_sha256?: string }
+}
+
 export interface Report {
   id: string
+  incident_id: string
   incident_code: string
+  revision: number
   generated_by: string
   generated_at: string
-  pages: number
+  snapshot: ReportSnapshot
 }
 
 export interface AdminUser extends User {
