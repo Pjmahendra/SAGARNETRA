@@ -1,0 +1,11 @@
+# Training-only dependencies. Deliberately NOT in backend/requirements.txt: production serves the ONNX export via
+# onnxruntime, so torch/smp/timm never enter the Render image (keeps it under the 400 MB budget, DECISIONS.md).
+# Install on Colab (T4) or a local CUDA box:  pip install -r ml/requirements-train.txt
+torch>=2.2
+torchvision>=0.17
+segmentation-models-pytorch>=0.3.4
+timm>=0.9.16
+numpy>=1.26
+pillow>=10.0
+onnx>=1.16
+onnxruntime>=1.17
