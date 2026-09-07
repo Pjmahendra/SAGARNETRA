@@ -1,9 +1,25 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { CircleMarker, MapContainer, Polygon, Polyline, TileLayer, Tooltip } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import { ellipsePoints } from '../lib/geo'
 import type { LonLat, OriginZone, VesselType } from '../lib/types'
 import type { PlanTrack, PlanVessel } from './PlanView'
+
+type Basemap = 'satellite' | 'streets'
+
+/** True-colour Esri World Imagery — real coastlines, water, terrain, no styling layer between us and the ground. */
+const BASEMAPS: Record<Basemap, { url: string; attribution: string; maxZoom: number }> = {
+  satellite: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+    maxZoom: 19,
+  },
+  streets: {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+  },
+}
 
 const TYPE_COLOR: Record<VesselType, string> = {
   tanker: '#ff6803', cargo: '#1e6b74', fishing: '#7c8a3d', passenger: '#8a5fa8', tug: '#928c83', other: '#b3ada3',
@@ -12,10 +28,10 @@ const TYPE_COLOR: Record<VesselType, string> = {
 const ll = ([lon, lat]: LonLat): [number, number] => [lat, lon]
 
 /**
- * Real, coordinate-accurate map: actual OpenStreetMap tiles under our incident layers, via Leaflet —
- * a mature slippy map with correct scroll/pinch/double-click zoom and pan, which the hand-drawn
- * PlanView (SVG + custom viewBox math) was never built to support. Needs network access to fetch
- * tiles; PlanView stays the default, offline-safe view for that reason.
+ * Real, coordinate-accurate map: genuine satellite/street basemap tiles under our incident layers, via
+ * Leaflet — real coastlines, water bodies and terrain colour, with correct scroll/pinch/double-click zoom
+ * and pan, which the hand-drawn PlanView (SVG + custom viewBox math) was never built to support. Needs
+ * network access to fetch tiles; PlanView stays the default, offline-safe view for that reason.
  */
 export default function RealMap({
   polygon = [], zones = [], vessels = [], track, onSelect, className, focus,
@@ -28,6 +44,8 @@ export default function RealMap({
   className?: string
   focus?: [number, number, number, number]
 }) {
+  const [basemap, setBasemap] = useState<Basemap>('satellite')
+  const bm = BASEMAPS[basemap]
   const { center, bounds } = useMemo(() => {
     const pts: LonLat[] = focus
       ? [[focus[0], focus[1]], [focus[2], focus[3]]]
@@ -43,12 +61,17 @@ export default function RealMap({
   }, [polygon, zones, vessels, track, focus])
 
   return (
-    <MapContainer center={center} zoom={11} bounds={bounds} className={className} scrollWheelZoom>
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        maxZoom={19}
-      />
+    <div className={className} style={{ position: 'relative' }}>
+      <MapContainer center={center} zoom={11} bounds={bounds} className="size-full" scrollWheelZoom>
+        <TileLayer key={basemap} attribution={bm.attribution} url={bm.url} maxZoom={bm.maxZoom} />
+        {basemap === 'satellite' && (
+          <TileLayer
+            attribution=""
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+            maxZoom={19}
+            opacity={0.85}
+          />
+        )}
 
       {/* origin ellipses, oldest first so the newest sits on top */}
       {[...zones]
@@ -111,6 +134,24 @@ export default function RealMap({
           <Tooltip direction="top" offset={[0, -6]} className="!font-mono !text-[11px]">{v.name}</Tooltip>
         </CircleMarker>
       ))}
-    </MapContainer>
+      </MapContainer>
+
+      <div className="absolute right-3 top-3 z-[500] flex overflow-hidden rounded-md border border-line bg-surface/90 text-[11px] font-medium shadow-sm backdrop-blur">
+        <button
+          type="button"
+          onClick={() => setBasemap('satellite')}
+          className={basemap === 'satellite' ? 'bg-ink px-2.5 py-1.5 text-bg' : 'px-2.5 py-1.5 text-ink-2 hover:text-ink'}
+        >
+          Satellite
+        </button>
+        <button
+          type="button"
+          onClick={() => setBasemap('streets')}
+          className={basemap === 'streets' ? 'bg-ink px-2.5 py-1.5 text-bg' : 'px-2.5 py-1.5 text-ink-2 hover:text-ink'}
+        >
+          Streets
+        </button>
+      </div>
+    </div>
   )
 }
