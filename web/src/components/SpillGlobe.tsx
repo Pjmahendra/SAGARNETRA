@@ -209,6 +209,22 @@ export default function SpillGlobe({
       markers: dataRef.current.markers,
     })
 
+    // cobe sizes its wrapper div (and the canvas inside it) with inline pixel styles of its
+    // own choosing, not necessarily the host's actual rendered box. Our marker-button overlay
+    // is positioned `absolute inset-0` against the host, so if cobe's box drifts from the
+    // host's box, the anchor percentages we copy below land in the wrong place — visibly, on
+    // whatever sits below the globe on the page. Pin both to the host's box exactly, so cobe's
+    // own percentages and our overlay always share one coordinate space.
+    const wrap = canvas.parentElement
+    if (wrap && wrap !== host) {
+      wrap.style.position = 'absolute'
+      wrap.style.inset = '0'
+      wrap.style.width = '100%'
+      wrap.style.height = '100%'
+    }
+    canvas.style.width = '100%'
+    canvas.style.height = '100%'
+
     // cobe wraps our canvas in a relative div and appends the anchor divs there.
     const findAnchors = () => {
       const wrap = canvas.parentElement
@@ -279,10 +295,10 @@ export default function SpillGlobe({
       cancelAnimationFrame(raf)
       globe.destroy()
       anchors.current = new Map()
-      // cobe wraps the canvas in a relative div and never removes it on destroy. Unwrap it,
-      // or repeated mounts nest wrappers indefinitely.
+      // cobe wraps the canvas in a div and never removes it on destroy (we then repin it to
+      // `absolute`, above). Unwrap it, or repeated mounts nest wrappers indefinitely.
       const wrap = canvas.parentElement
-      if (wrap && wrap !== host && wrap.contains(canvas) && wrap.style.position === 'relative') {
+      if (wrap && wrap !== host && wrap.contains(canvas) && (wrap.style.position === 'relative' || wrap.style.position === 'absolute')) {
         wrap.parentElement?.insertBefore(canvas, wrap)
         wrap.remove()
       }
@@ -371,7 +387,12 @@ export default function SpillGlobe({
   }, [])
 
   return (
-    <div ref={hostRef} className={`relative aspect-square w-full select-none ${className ?? ''}`}>
+    // overflow-hidden: cobe's own anchor percentages are unclamped (its projection math for a
+    // back-facing or off-disc marker can compute well outside 0–100%; cobe just never renders
+    // those anchors, since it only draws the sphere itself). We copy that same percentage onto
+    // a real, clickable button, so without a clip a stray marker can drift off the globe entirely
+    // and land on whatever content follows it on the page. Clipping to this box is the guarantee.
+    <div ref={hostRef} className={`relative aspect-square w-full select-none overflow-hidden ${className ?? ''}`}>
       <canvas
         ref={canvasRef}
         onPointerDown={onPointerDown}

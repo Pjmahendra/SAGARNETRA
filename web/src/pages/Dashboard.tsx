@@ -6,9 +6,19 @@ import { AnimatePresence, motion } from 'motion/react'
 import { ArrowRight, Crosshair, MapPin } from 'lucide-react'
 import { api } from '../lib/api'
 import { fmtAgo, fmtKm2, fmtUtc } from '../lib/format'
+import { cn } from '../lib/cn'
 import { Empty, EngineBadge, KpiTile, PageHeader, Panel, Spinner, StatusChip, TierChip } from '../components/Primitives'
 import SpillGlobe from '../components/SpillGlobe'
 import { useUi } from '../store/ui'
+
+const SECTIONS = [
+  { id: 'globe', label: 'Where the slicks are' },
+  { id: 'metrics', label: 'Key metrics' },
+  { id: 'incidents', label: 'Open incidents' },
+  { id: 'zones', label: 'Watch zones' },
+  { id: 'trend', label: 'Trend' },
+  { id: 'activity', label: 'Recent activity' },
+] as const
 
 export default function Dashboard() {
   const overview = useQuery({ queryKey: ['overview'], queryFn: api.overview })
@@ -20,6 +30,27 @@ export default function Dashboard() {
   const all = incidents.data ?? []
   const selected = all.find((i) => i.id === selectedId) ?? null
   const zoneOf = (name: string) => o?.zones.find((z) => z.name === name) ?? null
+
+  // Section nav: buttons jump between the page's boxes instead of scrolling to find them.
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+  const setSectionRef = (id: string) => (el: HTMLElement | null) => { sectionRefs.current[id] = el }
+  const [activeSection, setActiveSection] = useState<string>(SECTIONS[0].id)
+  const goToSection = (id: string) => sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
+  useEffect(() => {
+    if (!o) return
+    const els = SECTIONS.map((s) => sectionRefs.current[s.id]).filter((el): el is HTMLElement => !!el)
+    if (els.length === 0) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+        if (visible[0]) setActiveSection(visible[0].target.id)
+      },
+      { root: null, rootMargin: '-72px 0px -70% 0px', threshold: 0 },
+    )
+    els.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [o])
 
   // Selecting a slick (globe or list) drives the header's global Zone selector, so the
   // console-wide zone context always matches what is on screen here. The reverse direction
@@ -46,136 +77,155 @@ export default function Dashboard() {
       <PageHeader eyebrow="Overview" title="Dashboard" description="What needs attention across all watch zones. Times in UTC." />
       {!o ? <Spinner label="Loading overview" /> : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {/* Buttons to jump between the page's boxes, in place of hunting with the scrollbar. */}
+          <nav className="mb-4 flex flex-wrap gap-1 rounded-lg bg-surface-2/70 p-1" aria-label="Jump to section">
+            {SECTIONS.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => goToSection(s.id)}
+                className={cn(
+                  'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                  activeSection === s.id ? 'bg-ink text-bg' : 'text-ink-2 hover:bg-surface hover:text-ink',
+                )}
+              >
+                {s.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* The globe is the first thing an officer should see, full width; key metrics
+              follow right below it. */}
+          <Panel
+            title="Where the slicks are"
+            id="globe"
+            ref={setSectionRef('globe')}
+            actions={
+              selected ? (
+                <button type="button" onClick={() => selectIncident(null)} className="text-xs text-sea hover:underline">
+                  Clear selection
+                </button>
+              ) : (
+                <span className="font-mono text-[11px] text-ink-3">click a dot to select a locality</span>
+              )
+            }
+            bodyClassName="p-0"
+          >
+            <div className="grid lg:grid-cols-[1fr_1fr]">
+              <div className="p-4">
+                {!incidents.data ? (
+                  <div className="grid aspect-square place-items-center"><Spinner /></div>
+                ) : (
+                  <SpillGlobe incidents={all} selectedId={selectedId} onSelect={selectIncident} />
+                )}
+              </div>
+
+              <div className="border-t border-line p-5 lg:border-l lg:border-t-0">
+                <AnimatePresence mode="wait">
+                  {selected ? (
+                    <motion.div
+                      key={selected.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.22, ease: 'easeOut' }}
+                    >
+                      <div className="label-caps flex items-center gap-1.5 text-[10px]">
+                        <MapPin className="size-3" /> Selected locality
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-lg font-semibold">{selected.code}</span>
+                        <StatusChip status={selected.status} />
+                        <EngineBadge engine={selected.engine} />
+                        {selected.is_demo && (
+                          <span className="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-ink-3">demo scenario</span>
+                        )}
+                      </div>
+                      <div className="mt-1 font-display text-2xl font-semibold">{selected.zone}</div>
+
+                      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
+                        {[
+                          ['Slick area', fmtKm2(selected.area_km2)],
+                          ['Confidence', `${Math.round(selected.confidence * 100)}%`],
+                          ['Detected', fmtUtc(selected.detected_at)],
+                          ['Age', fmtAgo(selected.detected_at)],
+                          ['Centroid', `${selected.centroid[1].toFixed(4)}°N, ${selected.centroid[0].toFixed(4)}°E`],
+                          ['Ships in zone now', zoneOf(selected.zone) ? String(zoneOf(selected.zone)!.vessels_now) : '—'],
+                        ].map(([k, v]) => (
+                          <div key={k}>
+                            <dt className="label-caps text-[10px]">{k}</dt>
+                            <dd className="mt-0.5 font-mono text-sm tnum text-ink">{v}</dd>
+                          </div>
+                        ))}
+                      </dl>
+
+                      <div className="mt-4 rounded-md border border-line bg-surface-2/50 p-3">
+                        <div className="label-caps text-[10px]">Leading candidate</div>
+                        {selected.top_tier ? (
+                          <div className="mt-1.5 flex items-center gap-2">
+                            <TierChip tier={selected.top_tier} />
+                            <span className="font-mono text-sm">{selected.top_vessel ?? 'unnamed'}</span>
+                          </div>
+                        ) : (
+                          <div className="mt-1.5 text-sm text-ink-3">Not ranked yet — no vessels scored for this slick.</div>
+                        )}
+                      </div>
+
+                      <Link
+                        to={`/app/incidents/${selected.id}`}
+                        className="mt-4 inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-deep"
+                      >
+                        Open investigation <ArrowRight className="size-4" />
+                      </Link>
+                      <p className="mt-3 text-xs text-ink-3">A lead for inspection, not a verdict. Boarding and sampling confirm.</p>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="empty"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <div className="label-caps flex items-center gap-1.5 text-[10px]">
+                        <Crosshair className="size-3" /> No locality selected
+                      </div>
+                      <p className="mt-2 max-w-[42ch] text-sm text-ink-2">
+                        Every pulsing dot is a slick we detected in radar. Click one to pull up where it is, how big it is, and which
+                        vessel is currently the strongest lead.
+                      </p>
+                      <ul className="mt-4 divide-y divide-line rounded-md border border-line">
+                        {all.slice(0, 4).map((i) => (
+                          <li key={i.id}>
+                            <button
+                              type="button"
+                              onClick={() => selectIncident(i.id)}
+                              className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-2/60"
+                            >
+                              <span className="font-mono text-xs text-ink-2">{i.code}</span>
+                              <span className="min-w-0 flex-1 truncate text-sm">{i.zone}</span>
+                              <span className="font-mono text-xs text-ink-3">{fmtKm2(i.area_km2)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-3 text-xs text-ink-3">Drag the globe to spin it. Double-click to reset.</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </Panel>
+
+          <div id="metrics" ref={setSectionRef('metrics')} className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <KpiTile label="Open incidents" value={o.open_incidents} tone={o.open_incidents > 0 ? 'accent' : 'default'} hint="detected or under investigation" />
             <KpiTile label="Slicks this month" value={o.slicks_this_month} hint="confirmed by an officer" />
             <KpiTile label="Area this month" value={o.area_km2_this_month.toFixed(1)} unit="km²" hint="sum of confirmed slick polygons" />
             <KpiTile label="Vessels tracked" value={o.vessels_tracked} hint="live AIS inside watch zones" />
           </div>
 
-          <div className="mt-5">
-            <Panel
-              title="Where the slicks are"
-              actions={
-                selected ? (
-                  <button type="button" onClick={() => selectIncident(null)} className="text-xs text-sea hover:underline">
-                    Clear selection
-                  </button>
-                ) : (
-                  <span className="font-mono text-[11px] text-ink-3">click a dot to select a locality</span>
-                )
-              }
-              bodyClassName="p-0"
-            >
-              <div className="grid lg:grid-cols-[1fr_1fr]">
-                <div className="p-4">
-                  {!incidents.data ? (
-                    <div className="grid aspect-square place-items-center"><Spinner /></div>
-                  ) : (
-                    <SpillGlobe incidents={all} selectedId={selectedId} onSelect={selectIncident} />
-                  )}
-                </div>
-
-                <div className="border-t border-line p-5 lg:border-l lg:border-t-0">
-                  <AnimatePresence mode="wait">
-                    {selected ? (
-                      <motion.div
-                        key={selected.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        transition={{ duration: 0.22, ease: 'easeOut' }}
-                      >
-                        <div className="label-caps flex items-center gap-1.5 text-[10px]">
-                          <MapPin className="size-3" /> Selected locality
-                        </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-lg font-semibold">{selected.code}</span>
-                          <StatusChip status={selected.status} />
-                          <EngineBadge engine={selected.engine} />
-                          {selected.is_demo && (
-                            <span className="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-ink-3">demo scenario</span>
-                          )}
-                        </div>
-                        <div className="mt-1 font-display text-2xl font-semibold">{selected.zone}</div>
-
-                        <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
-                          {[
-                            ['Slick area', fmtKm2(selected.area_km2)],
-                            ['Confidence', `${Math.round(selected.confidence * 100)}%`],
-                            ['Detected', fmtUtc(selected.detected_at)],
-                            ['Age', fmtAgo(selected.detected_at)],
-                            ['Centroid', `${selected.centroid[1].toFixed(4)}°N, ${selected.centroid[0].toFixed(4)}°E`],
-                            ['Ships in zone now', zoneOf(selected.zone) ? String(zoneOf(selected.zone)!.vessels_now) : '—'],
-                          ].map(([k, v]) => (
-                            <div key={k}>
-                              <dt className="label-caps text-[10px]">{k}</dt>
-                              <dd className="mt-0.5 font-mono text-sm tnum text-ink">{v}</dd>
-                            </div>
-                          ))}
-                        </dl>
-
-                        <div className="mt-4 rounded-md border border-line bg-surface-2/50 p-3">
-                          <div className="label-caps text-[10px]">Leading candidate</div>
-                          {selected.top_tier ? (
-                            <div className="mt-1.5 flex items-center gap-2">
-                              <TierChip tier={selected.top_tier} />
-                              <span className="font-mono text-sm">{selected.top_vessel ?? 'unnamed'}</span>
-                            </div>
-                          ) : (
-                            <div className="mt-1.5 text-sm text-ink-3">Not ranked yet — no vessels scored for this slick.</div>
-                          )}
-                        </div>
-
-                        <Link
-                          to={`/app/incidents/${selected.id}`}
-                          className="mt-4 inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-deep"
-                        >
-                          Open investigation <ArrowRight className="size-4" />
-                        </Link>
-                        <p className="mt-3 text-xs text-ink-3">A lead for inspection, not a verdict. Boarding and sampling confirm.</p>
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        key="empty"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <div className="label-caps flex items-center gap-1.5 text-[10px]">
-                          <Crosshair className="size-3" /> No locality selected
-                        </div>
-                        <p className="mt-2 max-w-[42ch] text-sm text-ink-2">
-                          Every pulsing dot is a slick we detected in radar. Click one to pull up where it is, how big it is, and which
-                          vessel is currently the strongest lead.
-                        </p>
-                        <ul className="mt-4 divide-y divide-line rounded-md border border-line">
-                          {all.slice(0, 4).map((i) => (
-                            <li key={i.id}>
-                              <button
-                                type="button"
-                                onClick={() => selectIncident(i.id)}
-                                className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-2/60"
-                              >
-                                <span className="font-mono text-xs text-ink-2">{i.code}</span>
-                                <span className="min-w-0 flex-1 truncate text-sm">{i.zone}</span>
-                                <span className="font-mono text-xs text-ink-3">{fmtKm2(i.area_km2)}</span>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                        <p className="mt-3 text-xs text-ink-3">Drag the globe to spin it. Double-click to reset.</p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-            </Panel>
-          </div>
-
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-            <Panel title="Open incidents" actions={<Link to="/app/incidents" className="text-xs text-sea hover:underline">All incidents</Link>} bodyClassName="p-0">
+            <Panel id="incidents" ref={setSectionRef('incidents')} title="Open incidents" actions={<Link to="/app/incidents" className="text-xs text-sea hover:underline">All incidents</Link>} bodyClassName="p-0">
               {!incidents.data ? <div className="p-4"><Spinner /></div> : incidents.data.filter((i) => i.status !== 'closed').length === 0 ? <div className="p-4"><Empty title="No open incidents" /></div> : (
                 <ul className="divide-y divide-line">
                   {incidents.data.filter((i) => i.status !== 'closed').map((i) => (
@@ -211,7 +261,7 @@ export default function Dashboard() {
               )}
             </Panel>
 
-            <Panel title="Watch zones" bodyClassName="p-0">
+            <Panel id="zones" ref={setSectionRef('zones')} title="Watch zones" bodyClassName="p-0">
               <ul className="divide-y divide-line">
                 {o.zones.map((z) => (
                   <li key={z.id} className="flex items-center justify-between px-4 py-3">
@@ -230,7 +280,7 @@ export default function Dashboard() {
           </div>
 
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-            <Panel title="Slicks detected, last 14 days">
+            <Panel id="trend" ref={setSectionRef('trend')} title="Slicks detected, last 14 days">
               <div className="h-44">
                 <ResponsiveContainer>
                   <AreaChart data={o.trend} margin={{ top: 6, right: 6, bottom: 0, left: -24 }}>
@@ -248,7 +298,7 @@ export default function Dashboard() {
                 </ResponsiveContainer>
               </div>
             </Panel>
-            <Panel title="Recent activity" bodyClassName="p-0">
+            <Panel id="activity" ref={setSectionRef('activity')} title="Recent activity" bodyClassName="p-0">
               <ul className="divide-y divide-line">
                 {o.recent.map((a) => (
                   <li key={a.id} className="flex items-baseline gap-3 px-4 py-2.5 text-sm">
