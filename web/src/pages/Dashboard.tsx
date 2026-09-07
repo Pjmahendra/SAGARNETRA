@@ -142,7 +142,6 @@ export default function Dashboard() {
                     onZoomedIn={(id) => navigate(`/app/incidents/${id}`)}
                     homeCenter={homeCenter}
                     homeLabel={activeZone?.name}
-                    fullscreenOnSelect
                   />
                 )}
               </div>
