@@ -1,5 +1,6 @@
 import {
-  AUDIT, DETECT_RESULTS, HEALTH, INCIDENTS, INCIDENT_DETAIL, OVERVIEW, REPORTS, SAMPLES, USERS, VESSELS, publicUser,
+  AUDIT, DETECT_RESULTS, HEALTH, INCIDENTS, INCIDENT_DETAIL, OVERVIEW, REPORTS, SAMPLES,
+  SECTOR_DETECTIONS, SECTORS, USERS, VESSELS, publicUser,
 } from './data'
 
 export class MockError extends Error {
@@ -44,6 +45,7 @@ export async function mockHandle<T>(method: string, path: string, body?: unknown
 
   requireRole('officer')
   if (key === 'GET /api/overview') return OVERVIEW as T
+  if (key === 'GET /api/sectors') return SECTORS as T
   if (key === 'GET /api/incidents') return INCIDENTS as T
   if (key === 'GET /api/vessels/live') return VESSELS as T
   if (key === 'GET /api/detect/samples') return SAMPLES as T
@@ -54,6 +56,16 @@ export async function mockHandle<T>(method: string, path: string, body?: unknown
   ] } as T
   if (key === 'GET /api/reports') return REPORTS as T
 
+  const sm = path.match(/^\/api\/sectors\/([^/]+)$/)
+  if (sm && method === 'GET') {
+    const s = SECTORS.find((x) => x.id === sm[1])
+    if (!s) throw new MockError(404, 'Sector not found')
+    return {
+      sector: { id: s.id, name: s.name, region: s.region, center: s.center, bbox: s.bbox },
+      detections: SECTOR_DETECTIONS[s.id] ?? [],
+      incidents: INCIDENTS.filter((i) => i.zone_id === s.id),
+    } as T
+  }
   let m = path.match(/^\/api\/incidents\/([^/]+)$/)
   if (m && method === 'GET') {
     if (m[1] === INCIDENT_DETAIL.id) return INCIDENT_DETAIL as T

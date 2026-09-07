@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { AlertTriangle, CheckCircle2, HelpCircle, Play, Upload } from 'lucide-react'
 import { api, ApiError, assetUrl, MOCK_MODE } from '../lib/api'
@@ -37,9 +37,10 @@ type Source = { kind: 'sample'; sample: DetectSample } | { kind: 'upload'; file:
 
 export default function DetectionConsole() {
   const navigate = useNavigate()
+  const [params] = useSearchParams()  // deep link from the command view: ?sample=<id> preselects that tile
   const samples = useQuery({ queryKey: ['detect', 'samples'], queryFn: api.detectSamples })
   const model = useQuery({ queryKey: ['detect', 'model'], queryFn: api.modelInfo })
-  const [sampleId, setSampleId] = useState<string | null>(null)
+  const [sampleId, setSampleId] = useState<string | null>(() => params.get('sample'))
   const [upload, setUpload] = useState<Extract<Source, { kind: 'upload' }> | null>(null)
   const [result, setResult] = useState<DetectResult | null>(null)
   const [opacity, setOpacity] = useState(0.8)

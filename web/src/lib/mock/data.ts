@@ -1,6 +1,6 @@
 import type {
   AdminUser, AuditEntry, DetectResult, DetectSample, FeatureContribution, Health, Incident,
-  IncidentDetail, LonLat, Overview, RankingRow, Report, Tier, User, Vessel,
+  IncidentDetail, LonLat, Overview, RankingRow, Report, SectorDetection, SectorSummary, Tier, User, Vessel,
 } from '../types'
 
 // ---- ranking weights (mirror of backend config; kept here for the mock) ----
@@ -105,6 +105,18 @@ export const INCIDENTS: Incident[] = [
   { id: 'inc-040', code: 'INC-2026-040', status: 'closed', zone: 'Mumbai Approaches', zone_id: 'z-mum', detected_at: '2026-08-29T01:05:00Z', area_km2: 1.37, confidence: 0.64, engine: 'heuristic', centroid: [72.61, 18.84], top_tier: 'poi', top_vessel: 'MV WESTERN GLORY', assigned_to: 'Lt. A. Menon', is_demo: true },
   { id: 'inc-039', code: 'INC-2026-039', status: 'detected', zone: 'Chennai–Ennore', zone_id: 'z-che', detected_at: '2026-08-24T00:31:00Z', area_km2: 0.58, confidence: 0.77, engine: 'unet', centroid: [80.42, 13.21], top_tier: null, top_vessel: null, assigned_to: null, is_demo: true },
 ]
+
+export const SECTORS: SectorSummary[] = [
+  { id: 'z-guj', name: 'Gujarat Offshore Lane', region: 'North-West', center: [69.4, 21.15], bbox: [68.6, 20.4, 70.2, 21.9], pending: 1, open_incidents: 1, last_scene_at: ACQ, vessels_now: 61 },
+  { id: 'z-mum', name: 'Mumbai Approaches', region: 'West', center: [72.65, 18.85], bbox: [72.2, 18.4, 73.1, 19.3], pending: 1, open_incidents: 0, last_scene_at: '2026-09-04T01:05:00Z', vessels_now: 58 },
+  { id: 'z-che', name: 'Chennai–Ennore', region: 'East', center: [80.55, 13.2], bbox: [80.2, 12.8, 80.9, 13.6], pending: 1, open_incidents: 1, last_scene_at: '2026-09-05T00:31:00Z', vessels_now: 24 },
+]
+
+export const SECTOR_DETECTIONS: Record<string, SectorDetection[]> = {
+  'z-guj': [{ id: 'det-pending-kut-04', created_at: '2026-09-05T03:00:00Z', engine: 'unet', confidence: 0, area_km2: 0, centroid: null, bbox: [68.90, 22.40, 69.15, 22.60], has_spill: false, verified: false, verification: null, sample_id: 'kut-04', scene: 'S1A_IW_GRDH 5C11 · tile 1' }],
+  'z-mum': [{ id: 'det-pending-mum-02', created_at: '2026-08-29T03:05:00Z', engine: 'unet', confidence: 0.835, area_km2: 2.10, centroid: [72.61, 18.84], bbox: [72.50, 18.75, 72.75, 18.95], has_spill: true, verified: false, verification: null, sample_id: 'mum-02', scene: 'S1A_IW_GRDH 4F91 · tile 7' }],
+  'z-che': [{ id: 'det-pending-che-03', created_at: '2026-08-24T02:31:00Z', engine: 'unet', confidence: 0.826, area_km2: 0.58, centroid: [80.42, 13.21], bbox: [80.30, 13.10, 80.55, 13.30], has_spill: true, verified: false, verification: null, sample_id: 'che-03', scene: 'S1A_IW_GRDH 3B27 · tile 2' }],
+}
 
 export const INCIDENT_DETAIL: IncidentDetail = {
   ...INCIDENTS[0],

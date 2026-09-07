@@ -9,6 +9,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import NotFound from './pages/NotFound'
 
+const CommandView = lazy(() => import('./pages/CommandView'))
 const DetectionConsole = lazy(() => import('./pages/DetectionConsole'))
 const LiveMap = lazy(() => import('./pages/LiveMap'))
 const Incidents = lazy(() => import('./pages/Incidents'))
@@ -29,7 +30,8 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route element={<RequireAuth />}>
           <Route path="/app" element={<AppShell />}>
-            <Route index element={<Dashboard />} />
+            <Route index element={<Lazy><CommandView /></Lazy>} />
+            <Route path="dashboard" element={<Dashboard />} />
             <Route path="detect" element={<Lazy><DetectionConsole /></Lazy>} />
             <Route path="map" element={<Lazy><LiveMap /></Lazy>} />
             <Route path="incidents" element={<Lazy><Incidents /></Lazy>} />

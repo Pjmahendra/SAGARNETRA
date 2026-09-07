@@ -1,6 +1,6 @@
 import type {
   AdminUser, AuditEntry, DetectResult, DetectSample, Health, Incident, IncidentDetail, IncidentStatus, LoginResponse, LookalikeReason,
-  ModelInfo, Overview, Report, User, VerifyDecision, Vessel, ZoneStatus,
+  ModelInfo, Overview, Report, SectorDetail, SectorSummary, User, VerifyDecision, Vessel, ZoneStatus,
 } from './types'
 import { MockError, mockHandle } from './mock/handlers'
 
@@ -75,6 +75,8 @@ export const api = {
   me: () => request<User>('GET', '/api/auth/me'),
   health: () => request<Health>('GET', '/api/health'),
   overview: () => request<Overview>('GET', '/api/overview'),
+  sectors: () => request<SectorSummary[]>('GET', '/api/sectors'),
+  sector: (id: string) => request<SectorDetail>('GET', `/api/sectors/${id}`),
   incidents: () => request<Incident[]>('GET', '/api/incidents'),
   incident: (id: string) => request<IncidentDetail>('GET', `/api/incidents/${id}`),
   createIncident: (detectionId: string) => request<Incident>('POST', '/api/incidents', { detection_id: detectionId }),

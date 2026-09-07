@@ -122,6 +122,40 @@ export interface IncidentDetail extends Incident {
   hashes: { tile_sha256: string; mask_sha256: string }
 }
 
+export interface SectorSummary {
+  id: string
+  name: string
+  region: string | null
+  center: LonLat | null
+  bbox: [number, number, number, number] | null
+  pending: number
+  open_incidents: number
+  last_scene_at: string | null
+  vessels_now: number
+}
+
+export interface SectorDetection {
+  id: string
+  created_at: string
+  engine: Engine
+  confidence: number
+  area_km2: number
+  centroid: LonLat | null
+  bbox: [number, number, number, number] | null
+  has_spill: boolean
+  verified: boolean
+  verification: { decision: string; reason?: string | null; note?: string } | null
+  incident_id?: string | null
+  scene?: string | null
+  sample_id?: string | null
+}
+
+export interface SectorDetail {
+  sector: { id: string; name: string; region: string | null; center: LonLat | null; bbox: [number, number, number, number] | null }
+  detections: SectorDetection[]
+  incidents: Incident[]
+}
+
 export interface Vessel {
   mmsi: string
   imo: string | null

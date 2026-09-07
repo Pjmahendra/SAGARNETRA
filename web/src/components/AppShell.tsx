@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, FileText, Globe2, LogOut, ScanSearch, ShieldCheck, Ship, Siren } from 'lucide-react'
+import { ChevronDown, FileText, Globe2, LayoutDashboard, LogOut, Orbit, ScanSearch, ShieldCheck, Ship, Siren } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router'
 import type { LucideIcon } from 'lucide-react'
 import { hasRole, useAuth } from '../auth/store'
@@ -8,7 +8,8 @@ import { cn } from '../lib/cn'
 import { useUi } from '../store/ui'
 
 const NAV: { to: string; label: string; end?: boolean; Icon?: LucideIcon }[] = [
-  { to: '/app', label: 'Dashboard', end: true },
+  { to: '/app', label: 'Command', end: true, Icon: Orbit },
+  { to: '/app/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
   { to: '/app/detect', label: 'Detect', Icon: ScanSearch },
   { to: '/app/map', label: 'Live Map', Icon: Globe2 },
   { to: '/app/incidents', label: 'Incidents', Icon: Siren },
