@@ -225,6 +225,8 @@ export default function CommandView() {
       label: d.has_spill ? 'Possible slick' : 'Clean tile',
       onClick: () => navigate(d.sample_id ? `/app/detect?sample=${d.sample_id}` : '/app/detect'),
     }))
+  // draw the confirmed incident's slick + drift ellipses on the sector map
+  const overlay = detail.data?.incidents.find((i) => i.polygon && i.polygon.length > 2)
 
   return (
     <div className="p-6">
@@ -236,7 +238,8 @@ export default function CommandView() {
           <AnimatePresence mode="wait" initial={false}>
             {sel ? (
               <motion.div key="map" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="h-[560px] w-full">
-                <RealMap className="size-full" focus={sel.bbox ?? undefined} points={mapPoints} />
+                <RealMap className="size-full" focus={sel.bbox ?? undefined} points={mapPoints}
+                  polygon={overlay?.polygon ?? []} zones={overlay?.origin_zones ?? []} />
               </motion.div>
             ) : (
               <motion.div key="globe" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="w-full">

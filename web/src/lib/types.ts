@@ -63,6 +63,9 @@ export interface Incident {
   top_vessel: string | null
   assigned_to: string | null
   is_demo: boolean
+  // present on sector-detail incidents so the command map can draw them
+  polygon?: LonLat[]
+  origin_zones?: OriginZone[]
 }
 
 export interface FeatureContribution {

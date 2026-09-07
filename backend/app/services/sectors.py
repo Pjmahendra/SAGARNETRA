@@ -83,8 +83,9 @@ async def sector_detail(db: AsyncIOMotorDatabase, zone_id: str) -> dict | None:
         ts = d["created_at"].timestamp() if d.get("created_at") else 0.0
         return (d.get("verification") is not None, -ts)
     dets.sort(key=_order)
+    # keep polygon + origin_zones so the command map can draw the slick and drift ellipses; drop the heavy fields
     incs = (
-        await db.incidents.find({"zone_id": zone_id}, {"ranking": 0, "events": 0, "polygon": 0, "origin_zones": 0})
+        await db.incidents.find({"zone_id": zone_id}, {"ranking": 0, "events": 0})
         .sort("detected_at", -1)
         .to_list(100)
     )

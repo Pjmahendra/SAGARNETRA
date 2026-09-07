@@ -63,7 +63,8 @@ export async function mockHandle<T>(method: string, path: string, body?: unknown
     return {
       sector: { id: s.id, name: s.name, region: s.region, center: s.center, bbox: s.bbox },
       detections: SECTOR_DETECTIONS[s.id] ?? [],
-      incidents: INCIDENTS.filter((i) => i.zone_id === s.id),
+      incidents: INCIDENTS.filter((i) => i.zone_id === s.id).map((i) =>
+        i.id === INCIDENT_DETAIL.id ? { ...i, polygon: INCIDENT_DETAIL.polygon, origin_zones: INCIDENT_DETAIL.origin_zones } : i),
     } as T
   }
   let m = path.match(/^\/api\/incidents\/([^/]+)$/)
