@@ -8,7 +8,8 @@ import { api } from '../lib/api'
 import { cn } from '../lib/cn'
 import { fmtKm2 } from '../lib/format'
 import { Empty, PageHeader, Panel, Spinner, StatusChip, TierChip } from '../components/Primitives'
-import type { SectorSummary } from '../lib/types'
+import RealMap, { type MapPoint } from '../components/RealMap'
+import type { LonLat, SectorSummary } from '../lib/types'
 
 // Same dotted-globe language as the Dashboard's SpillGlobe, tuned for sectors: click one and the sphere flies to it
 // and magnifies (cobe's own `scale`), while the review queue slides in beside it. cobe has no close-up imagery — the
@@ -215,14 +216,34 @@ export default function CommandView() {
   const detail = useQuery({ queryKey: ['sector', selected], queryFn: () => api.sector(selected as string), enabled: !!selected })
   const sel = sectors.data?.find((s) => s.id === selected) ?? null
 
+  const mapPoints: MapPoint[] = (detail.data?.detections ?? [])
+    .filter((d) => Array.isArray(d.centroid) && d.centroid.length === 2)
+    .map((d) => ({
+      id: d.id,
+      position: d.centroid as LonLat,
+      tone: d.has_spill ? 'spill' : 'clean',
+      label: d.has_spill ? 'Possible slick' : 'Clean tile',
+      onClick: () => navigate(d.sample_id ? `/app/detect?sample=${d.sample_id}` : '/app/detect'),
+    }))
+
   return (
     <div className="p-6">
       <PageHeader eyebrow="Command" title="Coastal watch"
-        description="Every sector we monitor. Select one to zoom in and clear its detection queue — confirm the real slicks, dismiss the look-alikes." />
+        description="Every sector we monitor. Select one to zoom into the real map and clear its detection queue — confirm the real slicks, dismiss the look-alikes." />
 
       <div className="grid gap-4 xl:grid-cols-[1fr_minmax(360px,420px)]">
-        <Panel title="Where the sectors are" bodyClassName="grid place-items-center p-4">
-          {!sectors.data ? <Spinner label="Loading globe" /> : <SectorGlobe sectors={sectors.data} selectedId={selected} onSelect={setSelected} />}
+        <Panel title={sel ? `${sel.name} — live map` : 'Where the sectors are'} bodyClassName={sel ? 'p-0' : 'grid place-items-center p-4'}>
+          <AnimatePresence mode="wait" initial={false}>
+            {sel ? (
+              <motion.div key="map" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="h-[560px] w-full">
+                <RealMap className="size-full" focus={sel.bbox ?? undefined} points={mapPoints} />
+              </motion.div>
+            ) : (
+              <motion.div key="globe" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="w-full">
+                {!sectors.data ? <Spinner label="Loading globe" /> : <SectorGlobe sectors={sectors.data} selectedId={selected} onSelect={setSelected} />}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </Panel>
 
         <Panel title={sel ? sel.name : 'Sectors'} bodyClassName="p-0"

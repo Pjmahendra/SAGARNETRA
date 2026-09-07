@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { MapContainer, Marker, Polygon, Polyline, ScaleControl, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
+import { CircleMarker, MapContainer, Marker, Polygon, Polyline, ScaleControl, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { ellipsePoints } from '../lib/geo'
@@ -57,6 +57,9 @@ function shipIcon(v: PlanVessel, onImagery: boolean) {
 
 interface Cursor { lat: number; lon: number; zoom: number }
 
+/** A simple point overlay — e.g. a sector's detections awaiting review. */
+export interface MapPoint { id: string; position: LonLat; tone?: 'spill' | 'clean'; label?: string; onClick?: () => void }
+
 /**
  * Live cursor position readout. PlanView labels its graticule, so the real map needs the
  * equivalent — decimal degrees to 4 places, per the project convention.
@@ -96,11 +99,12 @@ function SlickPane({ children }: { children: ReactNode }) {
  * network access to fetch tiles; PlanView stays the default, offline-safe view for that reason.
  */
 export default function RealMap({
-  polygon = [], zones = [], vessels = [], track, onSelect, className, focus,
+  polygon = [], zones = [], vessels = [], points = [], track, onSelect, className, focus,
 }: {
   polygon?: LonLat[]
   zones?: OriginZone[]
   vessels?: PlanVessel[]
+  points?: MapPoint[]
   track?: PlanTrack
   onSelect?: (mmsi: string) => void
   className?: string
@@ -192,6 +196,15 @@ export default function RealMap({
           ))}
         </>
       )}
+
+      {/* detection points — a sector's slicks/clean tiles awaiting officer review */}
+      {points.map((p) => (
+        <CircleMarker key={p.id} center={ll(p.position)} radius={8} pane="markerPane"
+          pathOptions={{ color: '#f4f2ef', weight: 2, fillColor: p.tone === 'spill' ? '#c7301f' : '#928c83', fillOpacity: 0.92 }}
+          eventHandlers={p.onClick ? { click: p.onClick } : undefined}>
+          {p.label && <Tooltip direction="top" offset={[0, -6]} className="!font-mono !text-[11px]">{p.label}</Tooltip>}
+        </CircleMarker>
+      ))}
 
       {/* vessels, as hulls pointed along their course */}
       {vessels.map((v) => (
