@@ -16,6 +16,12 @@ const NAV: { to: string; label: string; end?: boolean; Icon?: LucideIcon }[] = [
   { to: '/app/reports', label: 'Reports', Icon: FileText },
 ]
 
+const navLink = ({ isActive }: { isActive: boolean }) =>
+  cn(
+    'inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-ink-2 transition-colors hover:bg-surface hover:text-ink',
+    isActive && 'bg-ink text-bg shadow-sm hover:bg-ink hover:text-bg',
+  )
+
 function Dot({ ok, label, detail }: { ok: boolean | null; label: string; detail: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-ink-3" title={`${label}: ${detail}`}>
@@ -39,85 +45,75 @@ export default function AppShell() {
     <div className="grid h-dvh grid-rows-[64px_1fr] bg-bg">
       {/* Top navigation. Buttons, not a sidebar — every destination is one click away, always visible. */}
       <header className="sticky top-0 z-20 border-b border-line bg-surface/95 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-2 px-4">
-          <NavLink to="/app" className="mr-2 flex shrink-0 items-center gap-2">
-            <span className="grid size-8 place-items-center rounded bg-ink font-pixel text-sm text-bg">S</span>
-            <span className="hidden font-display text-[15px] font-bold tracking-wide sm:inline">SAGARNETRA</span>
-          </NavLink>
+        {/* Three zones: identity left, destinations centred, working context + account right.
+            The flanks share flex-1 so the nav sits optically centred regardless of their width. */}
+        <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-4 px-4">
+          <div className="flex flex-1 justify-start">
+            <NavLink to="/app" className="flex shrink-0 items-center gap-2">
+              <span className="grid size-8 place-items-center rounded bg-ink font-pixel text-sm text-bg">S</span>
+              <span className="hidden font-display text-[15px] font-bold tracking-wide sm:inline">SAGARNETRA</span>
+            </NavLink>
+          </div>
 
-          <nav className="flex flex-1 items-center gap-1 overflow-x-auto">
+          <nav className="flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-lg bg-surface-2/70 p-1">
             {NAV.map(({ to, label, end, Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={end}
-                className={({ isActive }) =>
-                  cn(
-                    'inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink',
-                    isActive && 'bg-ink text-bg hover:bg-ink hover:text-bg',
-                  )
-                }
-              >
+              <NavLink key={to} to={to} end={end} className={navLink}>
                 {Icon && <Icon className="size-[15px]" aria-hidden />}
                 {label}
               </NavLink>
             ))}
             {hasRole(user, 'admin') && (
-              <NavLink
-                to="/app/admin"
-                className={({ isActive }) =>
-                  cn(
-                    'inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink',
-                    isActive && 'bg-ink text-bg hover:bg-ink hover:text-bg',
-                  )
-                }
-              >
+              <NavLink to="/app/admin" className={navLink}>
                 <ShieldCheck className="size-[15px]" aria-hidden />
                 Admin
               </NavLink>
             )}
           </nav>
 
-          <div className="ml-2 hidden items-center gap-3 border-r border-line pr-3 lg:flex">
-            <Dot ok={h ? h.model !== 'missing' : null} label="model" detail={h?.model ?? 'checking'} />
-            <Dot ok={h ? h.database !== 'disconnected' : null} label="db" detail={h?.database ?? 'checking'} />
-            <Dot ok={h ? h.ais_collector !== 'stopped' : null} label="ais" detail={h?.ais_collector ?? 'checking'} />
+          <div className="flex flex-1 items-center justify-end gap-3">
+            <div className="hidden items-center gap-3 lg:flex">
+              <Dot ok={h ? h.model !== 'missing' : null} label="model" detail={h?.model ?? 'checking'} />
+              <Dot ok={h ? h.database !== 'disconnected' : null} label="db" detail={h?.database ?? 'checking'} />
+              <Dot ok={h ? h.ais_collector !== 'stopped' : null} label="ais" detail={h?.ais_collector ?? 'checking'} />
+            </div>
+
+            {MOCK_MODE && (
+              <span
+                className="hidden shrink-0 rounded border border-accent/40 bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent-deep sm:inline"
+                title="VITE_API_BASE is empty: the UI is running on bundled mock data"
+              >
+                mock data
+              </span>
+            )}
+
+            <span className="hidden h-6 w-px shrink-0 bg-line lg:block" aria-hidden />
+
+            <label className="relative hidden shrink-0 items-center md:flex">
+              <span className="sr-only">Zone</span>
+              <select
+                value={zoneId}
+                onChange={(e) => setZone(e.target.value)}
+                className="appearance-none rounded-md border border-line bg-surface-2 py-1.5 pl-3 pr-7 font-mono text-xs text-ink"
+              >
+                {(overview.data?.zones ?? [{ id: zoneId, name: 'Loading…' }]).map((z) => (
+                  <option key={z.id} value={z.id}>{z.name}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 size-3.5 text-ink-3" aria-hidden />
+            </label>
+
+            <button
+              onClick={onLogout}
+              className="flex shrink-0 items-center gap-2 rounded-full bg-ink py-1.5 pl-1.5 pr-3 text-bg transition-opacity hover:opacity-90"
+              title="Sign out"
+            >
+              <span className="grid size-6 place-items-center rounded-full bg-white/15 text-[11px] font-semibold uppercase">
+                {(user?.name ?? user?.role ?? '?').slice(0, 1)}
+              </span>
+              <span className="hidden text-xs font-semibold sm:inline">{user?.role}</span>
+              <LogOut className="size-3.5" aria-hidden />
+            </button>
           </div>
-
-          <label className="relative hidden shrink-0 items-center md:flex">
-            <span className="sr-only">Zone</span>
-            <select
-              value={zoneId}
-              onChange={(e) => setZone(e.target.value)}
-              className="appearance-none rounded-md border border-line bg-surface-2 py-1.5 pl-3 pr-7 font-mono text-xs text-ink"
-            >
-              {(overview.data?.zones ?? [{ id: zoneId, name: 'Loading…' }]).map((z) => (
-                <option key={z.id} value={z.id}>{z.name}</option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 size-3.5 text-ink-3" aria-hidden />
-          </label>
-
-          {MOCK_MODE && (
-            <span
-              className="hidden shrink-0 rounded border border-accent/40 bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent-deep sm:inline"
-              title="VITE_API_BASE is empty: the UI is running on bundled mock data"
-            >
-              mock data
-            </span>
-          )}
-
-          <button
-            onClick={onLogout}
-            className="ml-1 flex shrink-0 items-center gap-2 rounded-full bg-ink py-1.5 pl-1.5 pr-3 text-bg transition-opacity hover:opacity-90"
-            title="Sign out"
-          >
-            <span className="grid size-6 place-items-center rounded-full bg-white/15 text-[11px] font-semibold uppercase">
-              {(user?.name ?? user?.role ?? '?').slice(0, 1)}
-            </span>
-            <span className="hidden text-xs font-semibold sm:inline">{user?.role}</span>
-            <LogOut className="size-3.5" aria-hidden />
-          </button>
         </div>
       </header>
 
