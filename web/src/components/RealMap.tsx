@@ -99,13 +99,14 @@ function SlickPane({ children }: { children: ReactNode }) {
  * network access to fetch tiles; PlanView stays the default, offline-safe view for that reason.
  */
 export default function RealMap({
-  polygon = [], zones = [], vessels = [], points = [], track, onSelect, className, focus,
+  polygon = [], zones = [], vessels = [], points = [], track, tracks = [], onSelect, className, focus,
 }: {
   polygon?: LonLat[]
   zones?: OriginZone[]
   vessels?: PlanVessel[]
   points?: MapPoint[]
   track?: PlanTrack
+  tracks?: PlanTrack[]
   onSelect?: (mmsi: string) => void
   className?: string
   focus?: [number, number, number, number]
@@ -195,6 +196,24 @@ export default function RealMap({
             />
           ))}
         </>
+      )}
+
+      {/* multiple AIS tracks (e.g. every candidate vessel in a sector); gap segments dashed and red */}
+      {tracks.map((tr, ti) =>
+        tr.points.length > 1
+          ? tr.points.slice(1).map((k, i) => (
+              <Polyline
+                key={`t${ti}-${i}`}
+                positions={[tr.points[i].p, k.p].map(ll)}
+                pathOptions={{
+                  color: k.gap ? (basemap === 'satellite' ? '#ff5a45' : '#c7301f') : basemap === 'satellite' ? '#f4f2ef' : '#14100c',
+                  weight: k.gap ? 3 : 2,
+                  opacity: k.gap ? 0.95 : 0.6,
+                  dashArray: k.gap ? '8 6' : undefined,
+                }}
+              />
+            ))
+          : null,
       )}
 
       {/* detection points — a sector's slicks/clean tiles awaiting officer review */}

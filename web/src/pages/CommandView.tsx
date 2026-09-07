@@ -9,6 +9,7 @@ import { cn } from '../lib/cn'
 import { fmtKm2 } from '../lib/format'
 import { Empty, PageHeader, Panel, Spinner, StatusChip, TierChip } from '../components/Primitives'
 import RealMap, { type MapPoint } from '../components/RealMap'
+import type { PlanTrack, PlanVessel } from '../components/PlanView'
 import type { LonLat, SectorSummary } from '../lib/types'
 
 // Same dotted-globe language as the Dashboard's SpillGlobe, tuned for sectors: click one and the sphere flies to it
@@ -19,7 +20,16 @@ const HOT: [number, number, number] = [1, 0.408, 0.012]
 const CALM: [number, number, number] = [0.12, 0.42, 0.46]
 const SPIN = 0.0022
 const TAU = Math.PI * 2
-const SELECT_ZOOM = 2.1
+const SELECT_ZOOM = 3.2 // deep enough that the globe reads as "diving in" before the map takes over
+const ZOOM_MS = 1100 // how long the globe rotates + zooms before the Leaflet map opens
+
+/** Course over ground from a track's last segment, so hulls point the way they were steaming. */
+function lastCog(track: { p: LonLat }[]): number {
+  if (track.length < 2) return 0
+  const a = track[track.length - 2].p
+  const b = track[track.length - 1].p
+  return (Math.atan2(b[0] - a[0], b[1] - a[1]) * 180) / Math.PI
+}
 
 function unitVec(lat: number, lon: number) {
   const latR = (lat * Math.PI) / 180
@@ -213,8 +223,20 @@ export default function CommandView() {
   const navigate = useNavigate()
   const sectors = useQuery({ queryKey: ['sectors'], queryFn: api.sectors })
   const [selected, setSelected] = useState<string | null>(null)
+  // Two-phase transition: on select the globe stays up and flies+zooms to the sector, THEN the map opens — so it
+  // reads as one continuous dive from the globe into the coastline rather than an instant swap.
+  const [phase, setPhase] = useState<'globe' | 'map'>('globe')
+  const timerRef = useRef<number | null>(null)
   const detail = useQuery({ queryKey: ['sector', selected], queryFn: () => api.sector(selected as string), enabled: !!selected })
   const sel = sectors.data?.find((s) => s.id === selected) ?? null
+
+  const selectSector = useCallback((id: string | null) => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
+    setSelected(id)
+    setPhase('globe')
+    if (id) timerRef.current = window.setTimeout(() => setPhase('map'), ZOOM_MS)
+  }, [])
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
 
   const mapPoints: MapPoint[] = (detail.data?.detections ?? [])
     .filter((d) => Array.isArray(d.centroid) && d.centroid.length === 2)
@@ -225,8 +247,18 @@ export default function CommandView() {
       label: d.has_spill ? 'Possible slick' : 'Clean tile',
       onClick: () => navigate(d.sample_id ? `/app/detect?sample=${d.sample_id}` : '/app/detect'),
     }))
-  // draw the confirmed incident's slick + drift ellipses on the sector map
+  // The confirmed incident whose slick + drift + AIS tracks we draw on the sector map.
   const overlay = detail.data?.incidents.find((i) => i.polygon && i.polygon.length > 2)
+  const incidentQ = useQuery({ queryKey: ['incident', overlay?.id], queryFn: () => api.incident(overlay!.id), enabled: !!overlay })
+  const ranking = incidentQ.data?.ranking ?? []
+  const vessels: PlanVessel[] = ranking
+    .filter((r) => r.track.length > 0)
+    .map((r, idx) => ({
+      mmsi: r.mmsi, name: r.name, type: r.type_group,
+      position: r.track[r.track.length - 1].p, cog: lastCog(r.track),
+      selected: idx === 0, dark: r.behaviour === 'dark',
+    }))
+  const tracks: PlanTrack[] = ranking.filter((r) => r.track.length > 1).map((r) => ({ points: r.track }))
 
   return (
     <div className="p-6">
@@ -234,29 +266,36 @@ export default function CommandView() {
         description="Every sector we monitor. Select one to zoom into the real map and clear its detection queue — confirm the real slicks, dismiss the look-alikes." />
 
       <div className="grid gap-4 xl:grid-cols-[1fr_minmax(360px,420px)]">
-        <Panel title={sel ? `${sel.name} — live map` : 'Where the sectors are'} bodyClassName={sel ? 'p-0' : 'grid place-items-center p-4'}>
-          <AnimatePresence mode="wait" initial={false}>
-            {sel ? (
-              <motion.div key="map" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="h-[560px] w-full">
-                <RealMap className="size-full" focus={sel.bbox ?? undefined} points={mapPoints}
-                  polygon={overlay?.polygon ?? []} zones={overlay?.origin_zones ?? []} />
-              </motion.div>
-            ) : (
-              <motion.div key="globe" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="w-full">
-                {!sectors.data ? <Spinner label="Loading globe" /> : <SectorGlobe sectors={sectors.data} selectedId={selected} onSelect={setSelected} />}
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <Panel title={phase === 'map' && sel ? `${sel.name} — live map` : 'Where the sectors are'} bodyClassName="p-0">
+          <div className="relative h-[560px] w-full overflow-hidden">
+            <AnimatePresence>
+              {phase === 'globe' && (
+                <motion.div key="globe" className="absolute inset-0 grid place-items-center p-4"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 1.15 }} transition={{ duration: 0.5 }}>
+                  {!sectors.data ? <Spinner label="Loading globe" /> : <SectorGlobe sectors={sectors.data} selectedId={selected} onSelect={selectSector} />}
+                </motion.div>
+              )}
+              {phase === 'map' && sel && (
+                <motion.div key="map" className="absolute inset-0"
+                  initial={{ opacity: 0, scale: 1.08 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.55, ease: 'easeOut' }}>
+                  <RealMap className="size-full" focus={sel.bbox ?? undefined} points={mapPoints}
+                    polygon={overlay?.polygon ?? []} zones={overlay?.origin_zones ?? []}
+                    vessels={vessels} tracks={tracks}
+                    onSelect={() => overlay && navigate(`/app/incidents/${overlay.id}`)} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </Panel>
 
         <Panel title={sel ? sel.name : 'Sectors'} bodyClassName="p-0"
-          actions={sel && <button onClick={() => setSelected(null)} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink-2 hover:text-ink"><ArrowLeft className="size-3.5" />All sectors</button>}>
+          actions={sel && <button onClick={() => selectSector(null)} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink-2 hover:text-ink"><ArrowLeft className="size-3.5" />All sectors</button>}>
           <AnimatePresence mode="wait" initial={false}>
             {!sel ? (
               <motion.ul key="list" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.22 }} className="divide-y divide-line">
                 {(sectors.data ?? []).map((s) => (
                   <li key={s.id}>
-                    <button onClick={() => setSelected(s.id)} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-2/60">
+                    <button onClick={() => selectSector(s.id)} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-2/60">
                       <span className="min-w-0">
                         <span className="block truncate font-semibold">{s.name}</span>
                         <span className="block font-mono text-[11px] text-ink-3">{s.region ?? '—'} · {s.vessels_now} ships · {s.open_incidents} open</span>
