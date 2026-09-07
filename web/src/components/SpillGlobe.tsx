@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import createGlobe from 'cobe'
+import createGlobe, { type Globe } from 'cobe'
 import { motion } from 'motion/react'
 import { Link } from 'react-router'
-import { Anchor, ArrowUpRight, ZoomIn } from 'lucide-react'
+import { Anchor, ArrowUpRight, X, ZoomIn } from 'lucide-react'
 import type { Incident, LonLat, Tier } from '../lib/types'
 
 /**
@@ -81,6 +81,7 @@ export default function SpillGlobe({
   onZoomedIn,
   homeCenter,
   homeLabel,
+  fullscreenOnSelect = false,
   className,
 }: {
   incidents: Incident[]
@@ -92,12 +93,23 @@ export default function SpillGlobe({
   homeCenter?: LonLat | null
   /** Zone name shown alongside homeCenter, so the officer sees which sector they're locked to. */
   homeLabel?: string
+  /**
+   * While a slick is selected, the globe expands out of its normal box into a fullscreen
+   * overlay — the zoom-in reads as diving into the whole page, not just growing inside a small
+   * panel. Off by default so an embed (e.g. a future mini-globe elsewhere) isn't forced into it.
+   */
+  fullscreenOnSelect?: boolean
   className?: string
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const anchors = useRef(new Map<string, HTMLElement>())
   const dots = useRef(new Map<string, HTMLButtonElement>())
+  const globeRef = useRef<Globe | null>(null)
+
+  // The zoom-in should read as diving into the whole page, not growing inside a small panel —
+  // the host itself expands to a fullscreen overlay for as long as a slick is selected.
+  const fullscreen = fullscreenOnSelect && !!selectedId
 
   // First paint already faces the officer's sector when one is given, so there's no visible
   // fly-in from some arbitrary default orientation on load.
@@ -252,6 +264,7 @@ export default function SpillGlobe({
       markerElevation: 0,
       markers: dataRef.current.markers,
     })
+    globeRef.current = globe
 
     // cobe sizes its wrapper div (and the canvas inside it) with inline pixel styles of its
     // own choosing, not necessarily the host's actual rendered box. Our marker-button overlay
@@ -352,6 +365,7 @@ export default function SpillGlobe({
       window.clearTimeout(t)
       cancelAnimationFrame(raf)
       globe.destroy()
+      globeRef.current = null
       anchors.current = new Map()
       // cobe wraps the canvas in a div and never removes it on destroy (we then repin it to
       // `absolute`, above). Unwrap it, or repeated mounts nest wrappers indefinitely.
@@ -362,6 +376,33 @@ export default function SpillGlobe({
       }
     }
   }, [sig, reduced])
+
+  // The globe's own raster resolution is fixed square (1000x1000) for its normal aspect-square
+  // box; fullscreen breaks that square, so cobe needs the real viewport aspect or the sphere
+  // renders stretched into an oval. Scale both dimensions by one factor (not an independent cap
+  // per axis) so a very wide or very tall display still gets its true aspect ratio, just capped
+  // in overall size. cobe's own update() only touches width/height when both are given, so this
+  // can't fight the per-frame phi/theta/scale updates in the render loop.
+  useEffect(() => {
+    if (!fullscreen) {
+      globeRef.current?.update({ width: 1000, height: 1000 })
+      return
+    }
+    const { innerWidth: w, innerHeight: h } = window
+    const scale = Math.min(1, 1600 / Math.max(w, h))
+    globeRef.current?.update({ width: Math.round(w * scale), height: Math.round(h * scale) })
+  }, [fullscreen])
+
+  // A fullscreen takeover with no way out is a trap, not a cinematic — Escape cancels it same
+  // as the close button, regardless of how far the zoom has already ramped.
+  useEffect(() => {
+    if (!fullscreen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onSelect(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fullscreen, onSelect])
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     if (pinchRef.current) return // a second finger down starts a pinch, not a drag
@@ -450,7 +491,20 @@ export default function SpillGlobe({
     // those anchors, since it only draws the sphere itself). We copy that same percentage onto
     // a real, clickable button, so without a clip a stray marker can drift off the globe entirely
     // and land on whatever content follows it on the page. Clipping to this box is the guarantee.
-    <div ref={hostRef} className={`relative aspect-square w-full select-none overflow-hidden ${className ?? ''}`}>
+    //
+    // `layout` makes Motion animate the box itself between its normal in-panel size and the
+    // fullscreen one below — the zoom-in reads as the whole page diving toward the slick, not a
+    // small box growing inside the page.
+    <motion.div
+      ref={hostRef}
+      layout={fullscreenOnSelect}
+      transition={{ layout: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } }}
+      className={
+        fullscreen
+          ? 'fixed inset-0 z-[999] select-none overflow-hidden bg-bg'
+          : `relative aspect-square w-full select-none overflow-hidden ${className ?? ''}`
+      }
+    >
       <canvas
         ref={canvasRef}
         onPointerDown={onPointerDown}
@@ -570,20 +624,37 @@ export default function SpillGlobe({
         ))}
       </div>
 
-      <div className="absolute right-2 top-2 flex items-center gap-1 rounded border border-line bg-surface/85 px-2 py-1 font-mono text-[10px] text-ink-3 backdrop-blur">
-        <ZoomIn className="size-3" aria-hidden />
-        {placed.length} slick{placed.length === 1 ? '' : 's'} · drag to spin · scroll/pinch to zoom
-      </div>
+      {!fullscreen && (
+        <div className="absolute right-2 top-2 flex items-center gap-1 rounded border border-line bg-surface/85 px-2 py-1 font-mono text-[10px] text-ink-3 backdrop-blur">
+          <ZoomIn className="size-3" aria-hidden />
+          {placed.length} slick{placed.length === 1 ? '' : 's'} · drag to spin · scroll/pinch to zoom
+        </div>
+      )}
 
       {/* Visible confirmation that the hold-on-sector behaviour above is active, and which
           sector — an officer restricted to one zone should never have to guess why the globe
-          stopped spinning. */}
-      {homeCenter && homeLabel && (
+          stopped spinning. Dropped once fullscreen, along with the badge above, to declutter
+          the dive-in. */}
+      {!fullscreen && homeCenter && homeLabel && (
         <div className="absolute left-2 top-2 flex items-center gap-1.5 rounded border border-line bg-surface/85 px-2 py-1 font-mono text-[10px] text-ink-2 backdrop-blur">
           <Anchor className="size-3 text-accent" aria-hidden />
           Sector: {homeLabel}
         </div>
       )}
-    </div>
+
+      {/* The fullscreen takeover's own exit — Escape does the same, but a visible control
+          matters just as much: nothing this dramatic should trap the officer in it. */}
+      {fullscreen && (
+        <button
+          type="button"
+          onClick={() => onSelect(null)}
+          aria-label="Cancel and return to the dashboard"
+          title="Cancel (Esc)"
+          className="absolute right-3 top-3 z-10 grid size-8 place-items-center rounded-full border border-line bg-surface/85 text-ink-2 backdrop-blur hover:bg-surface hover:text-ink"
+        >
+          <X className="size-4" />
+        </button>
+      )}
+    </motion.div>
   )
 }
