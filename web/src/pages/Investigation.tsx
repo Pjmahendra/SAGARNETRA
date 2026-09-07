@@ -11,6 +11,14 @@ import FeatureBars from '../components/FeatureBars'
 import PlanView from '../components/PlanView'
 import { Button, Empty, EngineBadge, PageHeader, Panel, Spinner, StatusChip, TierChip } from '../components/Primitives'
 
+function TaggedChip() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded border border-accent/50 bg-accent/10 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide text-accent" title="Tagged for port-state inspection">
+      <ClipboardCheck className="size-3" aria-hidden />tagged
+    </span>
+  )
+}
+
 export default function Investigation() {
   const { id = '' } = useParams()
   const q = useQuery({ queryKey: ['incident', id], queryFn: () => api.incident(id), enabled: !!id })
@@ -37,6 +45,11 @@ export default function Investigation() {
 
   if (!d) return <div className="p-6"><Spinner label="Loading incident" /></div>
   const t0 = new Date(d.detected_at).getTime()
+  const tagged = new Set(
+    d.events.filter((e) => (e.type === 'inspection' || e.type === 'psc_request') && e.mmsi).map((e) => e.mmsi as string),
+  )
+  const taggedRows = d.ranking.filter((r) => tagged.has(r.mmsi))
+  const selTagged = !!sel && tagged.has(sel.mmsi)
 
   return (
     <div className="p-6">
@@ -45,7 +58,7 @@ export default function Investigation() {
         actions={<>
           <StatusChip status={d.status} />
           <Button variant="ghost" onClick={onNote} disabled={addEvent.isPending}><MessageSquarePlus className="size-4" />Add note</Button>
-          <Button variant="ghost" onClick={onInspect} disabled={addEvent.isPending || !sel || d.status === 'closed'}><ClipboardCheck className="size-4" />Mark for inspection</Button>
+          <Button variant="ghost" onClick={onInspect} disabled={addEvent.isPending || !sel || selTagged || d.status === 'closed'} title={selTagged ? 'This vessel is already tagged for inspection' : undefined}><ClipboardCheck className="size-4" />{selTagged ? 'Tagged' : 'Mark for inspection'}</Button>
           <Button variant="ghost" onClick={() => rerank.mutate()} disabled={rerank.isPending} title="Recompute drift and ranking with the latest AIS data"><RefreshCw className={`size-4 ${rerank.isPending ? 'animate-spin' : ''}`} />Re-rank</Button>
           <Button disabled title="PDF export arrives with the report page"><FileDown className="size-4" />Export PDF</Button>
         </>} />
@@ -96,7 +109,7 @@ export default function Investigation() {
                   <button onClick={() => selectMmsi(r.mmsi)} className={`grid w-full grid-cols-[28px_1fr_auto] items-center gap-3 px-4 py-3 text-left hover:bg-surface-2/60 ${r.mmsi === selectedMmsi ? 'bg-surface-2' : ''} ${r.tier === 'prime' ? 'shadow-[inset_3px_0_0_0_var(--color-crit)]' : r.tier === 'poi' ? 'shadow-[inset_3px_0_0_0_var(--color-warn)]' : ''}`}>
                     <span className="font-mono text-sm text-ink-3 tnum">{i + 1}</span>
                     <span className="min-w-0">
-                      <span className="flex items-center gap-2"><span className="truncate font-semibold">{r.name}</span><TierChip tier={r.tier} compact /></span>
+                      <span className="flex items-center gap-2"><span className="truncate font-semibold">{r.name}</span><TierChip tier={r.tier} compact />{tagged.has(r.mmsi) && <TaggedChip />}</span>
                       <span className="block text-xs text-ink-2">{TYPE_LABEL[r.type_group]} · {r.flag} · {r.behaviour}{r.behaviour === 'dark' ? ' (AIS gap)' : ''}</span>
                     </span>
                     <span className="flex items-center gap-3">
@@ -112,9 +125,29 @@ export default function Investigation() {
 
         {/* vessel detail */}
         <div className="space-y-4">
+          <Panel title={`Tagged for inspection · ${taggedRows.length}`} bodyClassName={taggedRows.length ? 'p-0' : 'p-4'}>
+            {taggedRows.length === 0 ? (
+              <Empty title="No vessels tagged" hint="Select a suspect and use “Mark for inspection” to add it to the boarding shortlist." />
+            ) : (
+              <ul className="divide-y divide-line">
+                {taggedRows.map((r) => (
+                  <li key={r.mmsi}>
+                    <button onClick={() => selectMmsi(r.mmsi)}
+                      className={`flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-surface-2/60 ${r.mmsi === selectedMmsi ? 'bg-surface-2' : ''}`}>
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-2"><span className="truncate text-sm font-semibold">{r.name}</span><TierChip tier={r.tier} compact /></span>
+                        <span className="block font-mono text-[11px] text-ink-3">MMSI {r.mmsi} · {r.flag}</span>
+                      </span>
+                      <span className="font-display text-xl font-semibold tnum">{r.score}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
           {sel ? (
             <>
-              <Panel title={<div className="flex items-center gap-2"><Ship className="size-4 text-ink-3" /><h3 className="text-[15px] font-semibold">{sel.name}</h3></div>} actions={<TierChip tier={sel.tier} />}>
+              <Panel title={<div className="flex items-center gap-2"><Ship className="size-4 text-ink-3" /><h3 className="text-[15px] font-semibold">{sel.name}</h3></div>} actions={<span className="flex items-center gap-2">{selTagged && <TaggedChip />}<TierChip tier={sel.tier} /></span>}>
                 <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
                   <div><dt className="label-caps">MMSI</dt><dd className="font-mono">{sel.mmsi}</dd></div>
                   <div><dt className="label-caps">Flag</dt><dd className="font-mono">{sel.flag}</dd></div>

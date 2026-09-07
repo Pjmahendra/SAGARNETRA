@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from ..db import new_id, out
 from ..deps import Db, Officer
-from ..services import audit
+from ..services import audit, sectors
 
 router = APIRouter(prefix="/api/detect", tags=["detect"])
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -133,10 +133,17 @@ async def detect(
     det = get_detector(request)
     result = det.detect(tile, parsed_bbox)
 
+    # File the detection under the sector it falls in, so it shows up in that sector's review queue.
+    pt = result.centroid or (
+        [(parsed_bbox[0] + parsed_bbox[2]) / 2, (parsed_bbox[1] + parsed_bbox[3]) / 2] if parsed_bbox else None
+    )
+    _, zone_id = await sectors.zone_for_point(db, pt[0], pt[1]) if pt else (None, None)
+
     doc = {
         "_id": new_id("det"),
         "created_at": datetime.now(UTC),
         "created_by": user["_id"],
+        "zone_id": zone_id,
         "source": source,
         "engine": result.engine,
         "model_name": result.model_name,

@@ -10,7 +10,7 @@ from starlette.responses import JSONResponse
 
 from .config import Settings, get_settings
 from .db import connect, ensure_indexes
-from .routers import admin, auth, data, detect, health, incidents
+from .routers import admin, auth, data, detect, health, incidents, sectors
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -53,6 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(data.router)
     app.include_router(detect.router)
     app.include_router(incidents.router)
+    app.include_router(sectors.router)
     return app
 
 

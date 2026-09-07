@@ -6,6 +6,8 @@ export interface User {
   name: string
   role: Role
   org: string
+  region?: string | null
+  zone_ids?: string[]
 }
 
 export interface LoginResponse {
@@ -51,6 +53,7 @@ export interface Incident {
   code: string
   status: IncidentStatus
   zone: string
+  zone_id?: string | null
   detected_at: string
   area_km2: number
   confidence: number

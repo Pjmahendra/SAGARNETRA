@@ -117,6 +117,7 @@ async def seed_demo_incident(db, officer: dict) -> None:
         "_id": "det-demo-guj-01",
         "created_at": acq + timedelta(hours=2, minutes=50),
         "created_by": officer["_id"],
+        "zone_id": "z-guj",
         "source": {
             "kind": "sample",
             "sample_id": DEMO_SAMPLE,
@@ -155,6 +156,46 @@ async def seed_demo_incident(db, officer: dict) -> None:
     )
 
 
+async def seed_pending_detections(db) -> None:
+    """Give each sector a review queue: run the detector on its sample tile and store an UNVERIFIED detection.
+    This is what the officer works through in the command view. Synthetic tiles until real Sentinel-1 lands."""
+    det = Detector()
+    plan = [("mum-02", "z-mum"), ("che-03", "z-che"), ("kut-04", "z-guj")]  # kut-04 is a clean tile: review + dismiss
+    for sample_id, zone_id in plan:
+        sample = next((s for s in SAMPLES if s["_id"] == sample_id), None)
+        p = SAMPLES_DIR / f"{sample_id}.png"
+        if sample is None or not p.exists():
+            continue
+        data = p.read_bytes()
+        tile = load_tile(data, p.name)
+        r = det.detect(tile, tuple(sample["bbox"]))
+        doc = {
+            "_id": f"det-pending-{sample_id}",
+            "created_at": sample["acquired_at"] + timedelta(hours=2),
+            "created_by": None,
+            "zone_id": zone_id,
+            "source": {"kind": "sample", "sample_id": sample_id, "scene": sample.get("scene"),
+                       "acquired_at": sample.get("acquired_at"), "seeded": True},
+            "engine": r.engine,
+            "model_name": r.model_name,
+            "confidence": r.confidence,
+            "area_km2": r.area_km2,
+            "centroid": list(r.centroid) if r.centroid else None,
+            "geometry": {"type": "Polygon", "coordinates": [[list(pt) for pt in r.polygon]]} if len(r.polygon) >= 4 else None,
+            "heading_deg": r.heading_deg,
+            "elongation": r.elongation,
+            "class_pixels": r.class_pixels,
+            "inference_ms": r.inference_ms,
+            "tile_shape": list(tile.shape),
+            "bbox": list(sample["bbox"]),
+            "tile_sha256": hashlib.sha256(data).hexdigest(),
+            "mask_sha256": hashlib.sha256(r.mask_png.encode()).hexdigest(),
+            "verification": None,
+        }
+        await db.detections.replace_one({"_id": doc["_id"]}, doc, upsert=True)
+        print(f"pending detection {doc['_id']} in {zone_id}: has_spill={len(r.polygon) >= 4}, conf={r.confidence}")
+
+
 async def seed(reset: bool = False) -> None:
     settings = get_settings()
     client, db = await connect(settings)
@@ -169,6 +210,7 @@ async def seed(reset: bool = False) -> None:
         await db.incidents.delete_one({"_id": "inc-041"})  # legacy hand-authored demo incident
         officer = await seed_accounts(db)
         await seed_demo_incident(db, officer)
+        await seed_pending_detections(db)
     finally:
         client.close()
 

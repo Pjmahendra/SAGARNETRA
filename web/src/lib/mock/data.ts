@@ -24,12 +24,13 @@ function features(f: FeatIn): { features: FeatureContribution[]; score: number; 
 }
 
 // ---- users ----
-export const USERS: (AdminUser & { password: string })[] = [
-  { id: 'u-admin', email: 'admin@sagarnetra.in', password: 'Admin@123', name: 'Cmdt. R. Iyer', role: 'admin', org: 'ICG HQ, New Delhi', active: true, created_at: '2026-09-01T09:00:00Z', last_login: '2026-09-07T04:12:00Z' },
-  { id: 'u-off1', email: 'officer@sagarnetra.in', password: 'Officer@123', name: 'Lt. A. Menon', role: 'officer', org: 'ICG Region West, Porbandar', active: true, created_at: '2026-09-01T09:05:00Z', last_login: '2026-09-07T05:40:00Z' },
-  { id: 'u-off2', email: 's.rao@sagarnetra.in', password: 'Officer@123', name: 'Lt. S. Rao', role: 'officer', org: 'ICG Region East, Chennai', active: false, created_at: '2026-09-02T11:30:00Z', last_login: null },
+export const USERS: (AdminUser & { password: string; region?: string | null; zone_ids?: string[] })[] = [
+  { id: 'u-admin', email: 'admin@sagarnetra.in', password: 'Admin@123', name: 'Cmdt. R. Iyer', role: 'admin', org: 'ICG HQ, New Delhi', active: true, created_at: '2026-09-01T09:00:00Z', last_login: '2026-09-07T04:12:00Z', region: null, zone_ids: [] },
+  { id: 'u-off1', email: 'officer@sagarnetra.in', password: 'Officer@123', name: 'Lt. A. Menon', role: 'officer', org: 'ICG Region West, Porbandar', active: true, created_at: '2026-09-01T09:05:00Z', last_login: '2026-09-07T05:40:00Z', region: 'North-West', zone_ids: ['z-guj', 'z-mum'] },
+  { id: 'u-off2', email: 's.rao@sagarnetra.in', password: 'Officer@123', name: 'Lt. S. Rao', role: 'officer', org: 'ICG Region East, Chennai', active: false, created_at: '2026-09-02T11:30:00Z', last_login: null, region: 'East', zone_ids: ['z-che'] },
 ]
-export const publicUser = (u: AdminUser & { password: string }): User => ({ id: u.id, email: u.email, name: u.name, role: u.role, org: u.org })
+export const publicUser = (u: AdminUser & { password: string; region?: string | null; zone_ids?: string[] }): User =>
+  ({ id: u.id, email: u.email, name: u.name, role: u.role, org: u.org, region: u.region ?? null, zone_ids: u.zone_ids ?? [] })
 
 // ---- demo geography: Gujarat offshore lane, off Saurashtra ----
 const ACQ = '2026-09-06T01:12:00Z'
@@ -100,9 +101,9 @@ export const RANKING: RankingRow[] = [
 ].sort((a, b) => b.score - a.score)
 
 export const INCIDENTS: Incident[] = [
-  { id: 'inc-041', code: 'INC-2026-041', status: 'investigating', zone: 'Gujarat Offshore Lane', detected_at: ACQ, area_km2: 4.21, confidence: 0.91, engine: 'unet', centroid: SLICK_CENTROID, top_tier: 'prime', top_vessel: 'MT SAURASHTRA PRIDE', assigned_to: 'Lt. A. Menon', is_demo: true },
-  { id: 'inc-040', code: 'INC-2026-040', status: 'closed', zone: 'Mumbai Approaches', detected_at: '2026-08-29T01:05:00Z', area_km2: 1.37, confidence: 0.64, engine: 'heuristic', centroid: [72.61, 18.84], top_tier: 'poi', top_vessel: 'MV WESTERN GLORY', assigned_to: 'Lt. A. Menon', is_demo: true },
-  { id: 'inc-039', code: 'INC-2026-039', status: 'detected', zone: 'Chennai–Ennore', detected_at: '2026-08-24T00:31:00Z', area_km2: 0.58, confidence: 0.77, engine: 'unet', centroid: [80.42, 13.21], top_tier: null, top_vessel: null, assigned_to: null, is_demo: true },
+  { id: 'inc-041', code: 'INC-2026-041', status: 'investigating', zone: 'Gujarat Offshore Lane', zone_id: 'z-guj', detected_at: ACQ, area_km2: 4.21, confidence: 0.91, engine: 'unet', centroid: SLICK_CENTROID, top_tier: 'prime', top_vessel: 'MT SAURASHTRA PRIDE', assigned_to: 'Lt. A. Menon', is_demo: true },
+  { id: 'inc-040', code: 'INC-2026-040', status: 'closed', zone: 'Mumbai Approaches', zone_id: 'z-mum', detected_at: '2026-08-29T01:05:00Z', area_km2: 1.37, confidence: 0.64, engine: 'heuristic', centroid: [72.61, 18.84], top_tier: 'poi', top_vessel: 'MV WESTERN GLORY', assigned_to: 'Lt. A. Menon', is_demo: true },
+  { id: 'inc-039', code: 'INC-2026-039', status: 'detected', zone: 'Chennai–Ennore', zone_id: 'z-che', detected_at: '2026-08-24T00:31:00Z', area_km2: 0.58, confidence: 0.77, engine: 'unet', centroid: [80.42, 13.21], top_tier: null, top_vessel: null, assigned_to: null, is_demo: true },
 ]
 
 export const INCIDENT_DETAIL: IncidentDetail = {

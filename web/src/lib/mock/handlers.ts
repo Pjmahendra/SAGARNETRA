@@ -80,7 +80,7 @@ export async function mockHandle<T>(method: string, path: string, body?: unknown
   if (em && method === 'POST') {
     const ev = b as { type: string; text?: string; status?: string; mmsi?: string }
     const status = ev.type === 'status' ? ev.status : ev.type === 'inspection' || ev.type === 'psc_request' ? 'inspection_requested' : INCIDENT_DETAIL.status
-    INCIDENT_DETAIL.events = [...INCIDENT_DETAIL.events, { at: new Date().toISOString(), who: currentUser().name, type: ev.type, text: ev.text || (ev.type === 'inspection' ? `Vessel ${ev.mmsi ?? ''} marked for inspection` : `Status changed to ${status}`) }]
+    INCIDENT_DETAIL.events = [...INCIDENT_DETAIL.events, { at: new Date().toISOString(), who: currentUser().name, type: ev.type, mmsi: ev.mmsi ?? null, text: ev.text || (ev.type === 'inspection' ? `Vessel ${ev.mmsi ?? ''} marked for inspection` : `Status changed to ${status}`) }]
     INCIDENT_DETAIL.status = status as typeof INCIDENT_DETAIL.status
     return INCIDENT_DETAIL as T
   }
