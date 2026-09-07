@@ -1,0 +1,51 @@
+"""Generate clearly-labelled SYNTHETIC placeholder tiles so the console works before real Sentinel-1 tiles are bundled.
+
+Replace with real tiles exported from Copernicus Browser (same ids, same bboxes in bboxes.json) and delete this script's
+outputs. Never present these as satellite imagery.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import numpy as np
+from PIL import Image, ImageDraw
+
+HERE = Path(__file__).resolve().parent
+SPECS = {
+    "guj-01": {"spill": (0.55, 0.5, 120, 30, 0.72), "ships": [(0.62, 0.33)], "bbox": [69.30, 20.95, 69.55, 21.15]},
+    "mum-02": {"spill": (0.45, 0.55, 60, 22, 1.9), "ships": [(0.2, 0.2), (0.8, 0.7)], "bbox": [72.50, 18.75, 72.75, 18.95]},
+    "che-03": {"spill": (0.5, 0.45, 45, 18, 1.3), "ships": [], "bbox": [80.30, 13.10, 80.55, 13.30]},
+    "kut-04": {"spill": None, "ships": [(0.3, 0.6)], "bbox": [68.90, 22.40, 69.15, 22.60]},
+}
+
+
+def make(seed: int, spec: dict, size=(512, 352)) -> Image.Image:
+    rng = np.random.default_rng(seed)
+    w, h = size
+    img = rng.gamma(4.0, 32.0, (h, w))
+    yy, xx = np.mgrid[0:h, 0:w]
+    img *= 1 + 0.08 * np.sin(xx / 60.0) * np.cos(yy / 45.0)  # gentle swell texture
+    if spec["spill"]:
+        fx, fy, a, b, ang = spec["spill"]
+        cx, cy = w * fx, h * fy
+        dx = (xx - cx) * np.cos(ang) + (yy - cy) * np.sin(ang)
+        dy = -(xx - cx) * np.sin(ang) + (yy - cy) * np.cos(ang)
+        r = (dx / a) ** 2 + (dy / b) ** 2
+        img *= np.where(r < 1, 0.22 + 0.25 * r, 1.0)
+    img = img.clip(0, 255).astype(np.uint8)
+    pil = Image.fromarray(img)
+    d = ImageDraw.Draw(pil)
+    for fx, fy in spec["ships"]:
+        x, y = int(w * fx), int(h * fy)
+        d.rectangle([x - 2, y - 4, x + 2, y + 4], fill=255)
+    d.text((6, h - 14), "SYNTHETIC PLACEHOLDER - not satellite imagery", fill=200)
+    return pil
+
+
+if __name__ == "__main__":
+    for i, (sid, spec) in enumerate(SPECS.items()):
+        make(100 + i, spec).save(HERE / f"{sid}.png")
+    json.dump({k: v["bbox"] for k, v in SPECS.items()}, open(HERE / "bboxes.json", "w"), indent=2)
+    print("wrote", ", ".join(f"{k}.png" for k in SPECS), "and bboxes.json")

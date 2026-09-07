@@ -1,0 +1,28 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# node
+node_modules/
+web/dist/
+web/.vercel/
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# ml artifacts (large / licensed)
+ml/data/
+ml/weights/*.pt
+ml/weights/*.pth
+ml/runs/
+*.ckpt
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/

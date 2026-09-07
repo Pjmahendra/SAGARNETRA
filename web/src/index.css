@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+/*
+  Design system: sharp grayscale + accent orange, retro-tech precision.
+  Palette locked from brand reference: #FF6803 (accent), #AE3A02 (accent deep),
+  #BFBFBF (mid gray), #0B0501 (near-black), #FFFFFF (white). Status colors
+  (sea/ok/crit) extend the palette in the same warm, desaturated register —
+  a brand swatch of five colours cannot carry a product's status semantics
+  alone, so these keep the same character rather than reusing pure red/green.
+*/
+@theme {
+  --color-bg: #f4f2ef;
+  --color-surface: #ffffff;
+  --color-surface-2: #ece9e4;
+  --color-surface-3: #dedad3;
+  --color-ink: #14100c;
+  --color-ink-2: #5b564f;
+  --color-ink-3: #928c83;
+  --color-line: #dad5cd;
+  --color-accent: #ff6803;
+  --color-accent-deep: #ae3a02;
+  --color-accent-soft: #ffe3c6;
+  --color-sea: #1e6b74;
+  --color-sea-soft: #dbeeee;
+  --color-ok: #1f8a54;
+  --color-ok-soft: #dcf1e5;
+  --color-warn: #ae3a02;
+  --color-warn-soft: #f3ded4;
+  --color-crit: #c7301f;
+  --color-crit-soft: #f7dcd7;
+
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --font-pixel: "Silkscreen", "IBM Plex Mono", monospace;
+}
+
+@layer base {
+  html { color-scheme: light; }
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  h1, h2, h3, h4 { @apply font-display; text-wrap: balance; letter-spacing: -0.01em; }
+  ::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+  :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--color-surface-3); border-radius: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+}
+
+@utility tnum { font-variant-numeric: tabular-nums; }
+@utility label-caps {
+  @apply font-mono text-[11px] uppercase tracking-[0.08em] text-ink-3;
+}
+/* Sparingly: logo mark, section eyebrows, one hero word. Never body copy or dense data. */
+@utility font-pixel {
+  font-family: var(--font-pixel);
+  letter-spacing: 0.02em;
+}

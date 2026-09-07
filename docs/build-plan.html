@@ -1,0 +1,609 @@
+<title>SAGARNETRA Build Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #F3F5F8;
+    --surface: #FFFFFF;
+    --surface-2: #E9EDF3;
+    --ink: #14213A;
+    --ink-2: #4A5670;
+    --ink-3: #7B869C;
+    --line: #D4DAE4;
+    --accent: #B8730A;        /* beacon amber */
+    --accent-soft: #FBEFD6;
+    --sea: #17707D;           /* sea teal */
+    --sea-soft: #D9EEF0;
+    --slick: #0B0F17;
+    --ok: #2E7D4F;
+    --warn: #B8730A;
+    --crit: #B23A3A;
+    --code-bg: #1A2333;
+    --code-ink: #E6ECF5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0C1424;
+      --surface: #131D30;
+      --surface-2: #1A263B;
+      --ink: #E7ECF5;
+      --ink-2: #AAB6CA;
+      --ink-3: #7D8AA3;
+      --line: #27354D;
+      --accent: #E3A331;
+      --accent-soft: #2E2612;
+      --sea: #4FB3BF;
+      --sea-soft: #10303A;
+      --slick: #05080E;
+      --ok: #5DBE85;
+      --warn: #E3A331;
+      --crit: #E06B6B;
+      --code-bg: #0A111D;
+      --code-ink: #DCE4F2;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0C1424;
+    --surface: #131D30;
+    --surface-2: #1A263B;
+    --ink: #E7ECF5;
+    --ink-2: #AAB6CA;
+    --ink-3: #7D8AA3;
+    --line: #27354D;
+    --accent: #E3A331;
+    --accent-soft: #2E2612;
+    --sea: #4FB3BF;
+    --sea-soft: #10303A;
+    --slick: #05080E;
+    --ok: #5DBE85;
+    --warn: #E3A331;
+    --crit: #E06B6B;
+    --code-bg: #0A111D;
+    --code-ink: #DCE4F2;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--sea); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .page {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 48px;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 40px 28px 96px;
+  }
+  @media (max-width: 900px) {
+    .page { grid-template-columns: 1fr; gap: 24px; padding: 24px 18px 72px; }
+    nav.toc { position: static; }
+  }
+
+  nav.toc {
+    position: sticky;
+    top: 24px;
+    align-self: start;
+    font-size: 14px;
+  }
+  nav.toc .eyebrow { margin-bottom: 10px; }
+  nav.toc ol { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--line); }
+  nav.toc li a {
+    display: block; padding: 5px 0 5px 14px; color: var(--ink-2); text-decoration: none;
+    border-left: 2px solid transparent; margin-left: -1px;
+  }
+  nav.toc li a:hover { color: var(--ink); border-left-color: var(--accent); }
+
+  main { max-width: 820px; min-width: 0; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);
+  }
+  h1, h2, h3 {
+    font-family: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+    text-wrap: balance; margin: 0; line-height: 1.12;
+  }
+  h1 { font-size: 46px; font-weight: 700; letter-spacing: -0.01em; }
+  h2 { font-size: 30px; font-weight: 600; margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); }
+  h3 { font-size: 21px; font-weight: 600; margin-top: 32px; }
+  h2 + p, h3 + p { margin-top: 10px; }
+  p { margin: 14px 0; max-width: 68ch; }
+  p.lede { font-size: 20px; color: var(--ink-2); max-width: 60ch; }
+  strong { font-weight: 600; }
+
+  header.hero { padding-bottom: 8px; }
+  header.hero .eyebrow { margin-bottom: 14px; }
+  .pipeline-line {
+    margin: 24px 0 0; padding: 16px 20px; border-radius: 6px;
+    background: var(--surface-2); border-left: 4px solid var(--accent);
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 14px; color: var(--ink);
+    overflow-x: auto; white-space: nowrap;
+  }
+  .pipeline-line span { color: var(--ink-3); padding: 0 8px; }
+
+  .facts {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0;
+    margin: 28px 0 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
+  }
+  .facts div { padding: 14px 16px; background: var(--surface); border-right: 1px solid var(--line); }
+  .facts div:last-child { border-right: 0; }
+  .facts .k { display: block; font-size: 12px; color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; font-family: "IBM Plex Mono", monospace; }
+  .facts .v { display: block; font-size: 16px; font-weight: 600; margin-top: 4px; }
+  @media (max-width: 700px) { .facts div { border-right: 0; border-bottom: 1px solid var(--line); } .facts div:last-child { border-bottom: 0; } }
+
+  ul, ol.steps { margin: 10px 0; padding-left: 22px; max-width: 70ch; }
+  li { margin: 5px 0; }
+  li::marker { color: var(--ink-3); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 15px; margin: 14px 0; }
+  .tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+  .tbl table { margin: 0; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  th { font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; background: var(--surface-2); }
+  tr:last-child td { border-bottom: 0; }
+  td.num { font-variant-numeric: tabular-nums; font-family: "IBM Plex Mono", monospace; font-size: 14px; }
+  td code, li code, p code { font-family: "IBM Plex Mono", monospace; font-size: 0.88em; background: var(--surface-2); padding: 1px 5px; border-radius: 3px; }
+
+  pre {
+    margin: 14px 0; padding: 16px 18px; border-radius: 6px; overflow-x: auto;
+    background: var(--code-bg); color: var(--code-ink);
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13.5px; line-height: 1.5;
+  }
+  pre.mermaid { background: var(--surface); border: 1px solid var(--line); color: var(--ink); padding: 12px; }
+
+  .module {
+    margin: 22px 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface);
+  }
+  .module > .head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    padding: 14px 18px; border-bottom: 1px solid var(--line); background: var(--surface-2);
+  }
+  .module > .head h3 { margin: 0; font-size: 20px; }
+  .module > .head .stack { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--sea); }
+  .module .body { padding: 6px 18px 14px; }
+  .module .body p { margin: 10px 0; }
+  .module .body p:first-child { margin-top: 10px; }
+  .kv { display: grid; grid-template-columns: 90px 1fr; gap: 6px 14px; margin: 10px 0; font-size: 15.5px; }
+  .kv .k { font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); padding-top: 4px; }
+  @media (max-width: 600px) { .kv { grid-template-columns: 1fr; gap: 2px; } .kv .k { padding-top: 10px; } }
+
+  .tier { display: inline-block; padding: 1px 8px; border-radius: 3px; font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: 0.04em; }
+  .tier.crit { background: var(--crit); color: #fff; }
+  .tier.warn { background: var(--warn); color: #fff; }
+  .tier.ok { background: var(--ok); color: #fff; }
+
+  .callout {
+    margin: 18px 0; padding: 14px 18px; border-radius: 6px;
+    background: var(--accent-soft); border-left: 4px solid var(--accent); max-width: 70ch;
+  }
+  .callout.sea { background: var(--sea-soft); border-left-color: var(--sea); }
+  .callout p { margin: 6px 0; }
+
+  .timeline { list-style: none; padding: 0; margin: 14px 0; max-width: none; }
+  .timeline li {
+    display: grid; grid-template-columns: 120px 1fr; gap: 16px; padding: 12px 0; margin: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .timeline li:last-child { border-bottom: 0; }
+  .timeline .when { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--ink-3); padding-top: 3px; }
+  .timeline .what strong { display: block; font-family: "Barlow Semi Condensed", sans-serif; font-size: 18px; font-weight: 600; }
+  .timeline .what .done { font-size: 14px; color: var(--sea); margin-top: 4px; }
+  @media (max-width: 600px) { .timeline li { grid-template-columns: 1fr; gap: 4px; } }
+
+  footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 14px; }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  html { scroll-behavior: smooth; }
+</style>
+
+<div class="page">
+<nav class="toc" aria-label="Sections">
+  <div class="eyebrow">Contents</div>
+  <ol>
+    <li><a href="#mission">Mission</a></li>
+    <li><a href="#pipeline">The pipeline</a></li>
+    <li><a href="#logins">Users and logins</a></li>
+    <li><a href="#features">Features by page</a></li>
+    <li><a href="#modules">How every module is built</a></li>
+    <li><a href="#ui">UI direction</a></li>
+    <li><a href="#data">Data model</a></li>
+    <li><a href="#api">API surface</a></li>
+    <li><a href="#repo">Repository layout</a></li>
+    <li><a href="#schedule">Build schedule</a></li>
+    <li><a href="#demo">Three-minute demo</a></li>
+    <li><a href="#risks">Risks and honest claims</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero" id="mission">
+  <div class="eyebrow">Smart India Hackathon 2026 &nbsp;·&nbsp; PS SIH26143 &nbsp;·&nbsp; Full-stack build plan</div>
+  <h1>SAGARNETRA</h1>
+  <p class="lede">A maritime pollution intelligence platform. It finds oil slicks in satellite radar, works out where the oil came from, pulls every ship that was there, and hands a pollution officer a ranked, explainable list of suspects.</p>
+  <div class="pipeline-line">SAR scene <span>→</span> U-Net detects slick <span>→</span> geolocate + drift backtrack <span>→</span> AIS ships in the zone <span>→</span> categorise + rank <span>→</span> officer evidence pack</div>
+  <div class="facts">
+    <div><span class="k">Imagery</span><span class="v">Sentinel-1 C-band SAR, VV</span></div>
+    <div><span class="k">Model</span><span class="v">Custom U-Net, 5 classes</span></div>
+    <div><span class="k">Ship data</span><span class="v">AIS via AISStream</span></div>
+    <div><span class="k">Hosting</span><span class="v">Vercel · Render · Atlas</span></div>
+  </div>
+</header>
+
+<h2 id="pipeline">The pipeline, stage by stage</h2>
+<p>Everything in the app exists to move an incident through these six stages. Each stage is one backend module and one screen.</p>
+<pre class="mermaid">
+flowchart LR
+  A[1 Watch<br/>new Sentinel-1 scene<br/>over a watch zone] --> B[2 Detect<br/>U-Net mask → polygon<br/>area, centroid, time]
+  B --> C[3 Backtrack<br/>drift model → origin zones<br/>at t-6h, t-12h, t-24h]
+  C --> D[4 Ships nearby<br/>AIS tracks inside zones<br/>during the window]
+  D --> E[5 Categorise + rank<br/>type, behaviour, AIS gaps<br/>explainable risk score]
+  E --> F[6 Officer<br/>evidence pack, track replay<br/>inspection, PDF report]
+</pre>
+
+<div class="tbl"><table>
+  <thead><tr><th>Stage</th><th>What happens</th><th>Real or simulated in the demo</th></tr></thead>
+  <tbody>
+    <tr><td>1 Watch</td><td>Scheduler polls Copernicus Data Space for new Sentinel-1 GRD scenes intersecting saved watch zones, clips to the zone, cuts 256 px tiles.</td><td>Real API. Demo uses a "New scene received" button that pushes a bundled tile through the same code.</td></tr>
+    <tr><td>2 Detect</td><td>U-Net segments each tile. Mask is cleaned, look-alike pixels suppressed, largest blob traced to a polygon, pixels converted to lon/lat.</td><td>Real model, trained by us on the Krestenitis benchmark.</td></tr>
+    <tr><td>3 Backtrack</td><td>Wind and current fetched for the slick location. Centroid integrated backwards. Three origin ellipses produced.</td><td>Real weather data from Open-Meteo. Our own simple drift model.</td></tr>
+    <tr><td>4 Ships nearby</td><td>Query stored AIS positions inside the origin zones during the time window. Attach vessel identity and full track.</td><td>Live feed is real. Historical tracks for the demo incident are a generated scenario, stated openly.</td></tr>
+    <tr><td>5 Categorise + rank</td><td>Each ship gets a type, a behaviour label and a risk score from eight weighted features. Split into three tiers.</td><td>Real code, deterministic, every number explained on screen.</td></tr>
+    <tr><td>6 Officer</td><td>Evidence pack, track replay, notes, inspection actions, PDF export, source hashes for chain of custody.</td><td>Real.</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="logins">Users and logins</h2>
+<p>This is a government tool, so there is no public signup. An administrator provisions accounts. Two roles cover everything the app does: the admin keeps the platform running, the officer works the cases.</p>
+
+<div class="tbl"><table>
+  <thead><tr><th>Role</th><th>Who</th><th>Can do</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Admin</strong></td><td>System owner, Coast Guard IT lead, one or two per deployment</td><td>Create, reset and disable officer accounts. Draw and edit watch zones. Read the audit log. Check system health: model, database, last scene per zone, AIS collector. Run seeding. Plus everything the officer can do.</td></tr>
+    <tr><td><strong>Officer</strong></td><td>Coast Guard pollution response officer, the main user</td><td>Verify detections, open incidents, review the ranked suspects, replay tracks, add notes, mark vessels for inspection, request port state control, export the PDF evidence pack, use the assistant, watch live traffic.</td></tr>
+  </tbody>
+</table></div>
+
+<h3>How authentication works</h3>
+<ol class="steps">
+  <li>Officer enters email and password on <code>/login</code>. The frontend posts to <code>POST /api/auth/login</code>.</li>
+  <li>Backend looks up the user in the <code>users</code> collection, checks the bcrypt hash, updates <code>last_login</code>.</li>
+  <li>Backend returns a JWT signed with HS256 containing <code>sub</code>, <code>role</code>, <code>exp</code>. Expiry is 12 hours.</li>
+  <li>Frontend stores the token in localStorage, puts the user in the AuthProvider context, and redirects to <code>/app</code>.</li>
+  <li>Every API call carries <code>Authorization: Bearer &lt;token&gt;</code>. Any 401 clears the token and returns the user to <code>/login</code>.</li>
+  <li>Protected routers use <code>Depends(require_role("officer"))</code>. The dependency decodes the token, loads the user, checks the role, and hands the user object to the handler.</li>
+</ol>
+
+<div class="kv">
+  <div class="k">Endpoints</div><div><code>POST /api/auth/login</code> · <code>GET /api/auth/me</code> · <code>POST /api/auth/logout</code> · <code>GET/POST /api/admin/users</code> · <code>PATCH /api/admin/users/{id}</code></div>
+  <div class="k">Hashing</div><div>The <code>bcrypt</code> package directly, cost 12. Not passlib, which is unmaintained.</div>
+  <div class="k">Secret</div><div>32 random bytes in <code>JWT_SECRET</code>, never in the repo. Rotating it logs everyone out, which is fine.</div>
+  <div class="k">Abuse</div><div><code>slowapi</code> limits login to 5 attempts per minute per IP. CORS allowlist holds only the Vercel domain and localhost.</div>
+  <div class="k">Audit</div><div>Every detection, incident change and report export stores <code>created_by</code> and a timestamp. The admin page lists them.</div>
+  <div class="k">Seeds</div><div><code>admin@sagarnetra.in</code> and <code>officer@sagarnetra.in</code> created by the seed script. The login page has a "Sign in as demo officer" button that fills them, so nothing blocks on stage.</div>
+  <div class="k">Later</div><div>Refresh token rotation and OTP are the production upgrades. Say so when a judge asks; do not build them now.</div>
+</div>
+
+<h2 id="features">Features by page</h2>
+<p>Ten screens. Each one owns one job. Landing and Login are public; everything under <code>/app</code> sits behind RequireAuth. The officer uses eight of them; the Admin page is the admin's alone.</p>
+
+<div class="tbl"><table>
+  <thead><tr><th>Route</th><th>Page</th><th>What the user sees and does</th><th>Data behind it</th></tr></thead>
+  <tbody>
+    <tr><td><code>/</code></td><td>Landing</td><td>Problem statement, the six-stage pipeline, one screenshot per pillar, "Open console" button.</td><td>Static</td></tr>
+    <tr><td><code>/login</code></td><td>Login</td><td>Email, password, demo officer button, error messages that say what went wrong.</td><td><code>/api/auth/login</code></td></tr>
+    <tr><td><code>/app</code></td><td>Dashboard</td><td>Open incidents, slicks detected this month, total area, watch zones with last scene date, recent activity feed, small trend chart.</td><td><code>/api/overview</code></td></tr>
+    <tr><td><code>/app/detect</code></td><td>Detection Console</td><td>Pick a bundled Sentinel-1 tile or upload one. Run the model. See the SAR image, the mask overlay with per-class colours, the traced polygon, area in km², confidence, inference time, and whether the U-Net or the heuristic fallback answered. "Create incident" sends it down the pipeline.</td><td><code>/api/detect</code>, <code>/api/detect/samples</code></td></tr>
+    <tr><td><code>/app/map</code></td><td>Live Map</td><td>Cesium globe. Slick polygons, three drift origin ellipses, live AIS vessels as oriented markers coloured by type, watch zones. Click a vessel for its card. Time slider replays the incident window.</td><td><code>/api/incidents</code>, <code>/api/vessels/live</code>, <code>/api/incidents/{id}/tracks</code></td></tr>
+    <tr><td><code>/app/incidents</code></td><td>Incidents</td><td>Table of every incident with status, area, tier of top suspect, assigned officer. Filters by zone, date, status.</td><td><code>/api/incidents</code></td></tr>
+    <tr><td><code>/app/incidents/:id</code></td><td>Investigation</td><td>The evidence pack. Left: SAR image and mask, slick facts, drift assumptions. Centre: ranked vessel list with tier chips and feature bars. Right: selected vessel's identity, track replay, AIS gaps highlighted. Actions: mark for inspection, request port state control, add note, export PDF.</td><td><code>/api/incidents/{id}</code>, <code>/api/incidents/{id}/ranking</code></td></tr>
+    <tr><td><code>/app/vessels</code></td><td>Vessels</td><td>Live AIS table for the watch zones. Search by name or MMSI. Type and flag filters. Click through to the vessel on the map.</td><td><code>/api/vessels/live</code>, <code>/api/vessels/{mmsi}</code></td></tr>
+    <tr><td><code>/app/reports</code></td><td>Reports</td><td>List of generated reports, regenerate, download PDF. A report contains the SAR image, polygon map, drift assumptions, ranking table with feature breakdown, officer notes and source hashes.</td><td><code>/api/reports</code></td></tr>
+    <tr><td><code>/app/admin</code></td><td>Admin</td><td>Four tabs. Users: create, reset password, disable. Watch zones: draw and edit monitored areas. Audit log: who ran, changed or exported what. System health: model engine, database, last scene per zone, AIS collector status. Admin role only; the sidebar link is hidden for officers.</td><td><code>/api/admin/*</code>, <code>/api/health</code></td></tr>
+  </tbody>
+</table></div>
+<p>The assistant is a slide-over drawer available on every <code>/app</code> page. It answers questions about the current incident from the data, for example "why is MV Kaveri ranked first" or "how big is the slick in football fields". Built last.</p>
+
+<h2 id="modules">How every module is built</h2>
+<p>Each block below is one folder in the repo with one owner. The stack line is the exact set of libraries. Nothing here is optional except where marked.</p>
+
+<div class="module">
+  <div class="head"><h3>Frontend shell</h3><div class="stack">React 18 · TypeScript · Vite · Tailwind · react-router · Zustand · TanStack Query</div></div>
+  <div class="body">
+    <p><strong>What.</strong> A single-page app with a public landing and login, and an authenticated shell with a left sidebar, top bar showing the user and role, and the ten pages above.</p>
+    <p><strong>How.</strong> Vite project in <code>frontend/</code>. Tailwind for layout with a small token file for the palette. Zustand holds UI state: selected incident, map camera, time slider. TanStack Query wraps every API call so pages get loading, error and cache behaviour for free. A typed <code>api.ts</code> client reads <code>VITE_API_BASE</code>, attaches the bearer token, and handles 401. Recharts for the dashboard chart, Framer Motion for the console's mask reveal, lucide-react icons.</p>
+    <p><strong>Done when.</strong> Every route renders with mock data before the backend exists, using MSW handlers that mirror the API contract.</p>
+  </div>
+</div>
+
+<div class="module">
+  <div class="head"><h3>3D map</h3><div class="stack">Cesium · vite-plugin-cesium · GeoJSON</div></div>
+  <div class="body">
+    <p><strong>What.</strong> The globe on Live Map and the small map in Investigation.</p>
+    <p><strong>How.</strong> One <code>MapView</code> component owns the Cesium viewer. Base imagery from OpenStreetMap or Sentinel-2 cloudless via a plain tile URL, so no Cesium ion token is required. Layers are separate hooks: <code>useSlickLayer</code> draws polygons from GeoJSON, <code>useDriftLayer</code> draws the three ellipses with decreasing opacity, <code>useVesselLayer</code> draws billboard markers rotated by heading and coloured by type, <code>useTrackLayer</code> draws polylines for the selected vessel and animates a point along it with the time slider. Picking uses <code>scene.pick</code> and dispatches into Zustand.</p>
+    <p><strong>Done when.</strong> A demo incident shows slick, ellipses and eight vessels, and dragging the slider moves the ships.</p>
+  </div>
+</div>
+
+<div class="module">
+  <div class="head"><h3>Backend API</h3><div class="stack">Python 3.12 · FastAPI · uvicorn · pydantic v2 · Motor · httpx · APScheduler</div></div>
+  <div class="body">
+    <p><strong>What.</strong> One service in <code>backend/</code> exposing the API surface below, running the scheduler, and calling the ML package in-process.</p>
+    <p><strong>How.</strong> <code>app/main.py</code> creates the app, mounts routers, opens the Mongo client on startup, ensures indexes, starts APScheduler. Routers in <code>app/routers/</code>: auth, admin, overview, detect, incidents, vessels, reports, assistant. Business logic lives in <code>app/services/</code>, not in routers. Settings via <code>pydantic-settings</code> from environment. Auto-generated docs at <code>/docs</code> are shown to judges. A <code>/api/health</code> endpoint reports database and model status.</p>
+    <p><strong>Done when.</strong> <code>pytest</code> passes against an in-memory Mongo, and <code>/docs</code> lists every endpoint with schemas.</p>
+  </div>
+</div>
+
+<div class="module">
+  <div class="head"><h3>Authentication</h3><div class="stack">PyJWT · bcrypt · slowapi</div></div>
+  <div class="body">
+    <p><strong>What.</strong> The login flow described in the section above.</p>
+    <p><strong>How.</strong> <code>app/security.py</code> has <code>hash_password</code>, <code>verify_password</code>, <code>create_token</code>, <code>decode_token</code>. <code>app/deps.py</code> has <code>get_current_user</code> and <code>require_role(*roles)</code>. Roles are an enum. The frontend has <code>AuthProvider</code>, <code>useAuth</code>, <code>RequireAuth</code> and a <code>RequireRole</code> wrapper that hides the admin page and link from officers. Roles are nested: admin includes everything officer can do.</p>
+    <p><strong>Done when.</strong> Wrong password returns 401 with a clear message, an officer calling an admin endpoint gets 403, an expired token bounces to login.</p>
+  </div>
+</div>
+
+<div class="module">
+  <div class="head"><h3>Database</h3><div class="stack">MongoDB Atlas M0 · Motor · 2dsphere indexes</div></div>
+  <div class="body">
+    <p><strong>What.</strong> Eight collections listed in the data model. GeoJSON geometry on detections, incidents, AIS positions and watch zones so spatial queries run in the database.</p>
+    <p><strong>How.</strong> <code>app/db.py</code> holds the client and an <code>ensure_indexes</code> function: unique on <code>users.email</code>, 2dsphere on every <code>geometry</code> field, compound on <code>ais_positions (mmsi, ts)</code>, TTL of 7 days on live AIS positions so the free tier never fills. Local development uses Docker Compose with a Mongo container. A <code>seed_db.py</code> script writes the admin, officer, one watch zone, the demo scenario and its tracks.</p>
+    <p><strong>Why Mongo and not PostGIS.</strong> Detection documents vary in shape, 2dsphere covers the queries we need, and Atlas M0 is free. Know this answer for the judges.</p>
+  </div>
+</div>
+
+<div class="module">
+  <div class="head"><h3>Computer vision model</h3><div class="stack">PyTorch · albumentations · torchmetrics · ONNX · onnxruntime · OpenCV</div></div>
+  <div class="body">
+    <p><strong>What.</strong> A U-Net we write ourselves that labels every pixel of a Sentinel-1 tile as sea, oil spill, look-alike, ship or land.</p>
+    <p><strong>Data.</strong> Krestenitis et al. 2019, requested from MKLab. 1,112 images at 1250 × 650 with 5-class masks, split 1,002 train and 110 test. Tiles are cut to 256 × 256 with overlap. Augmentations: flips, 90° rotations, brightness and speckle noise.</p>
+    <p><strong>Architecture.</strong> <code>ml/unet.py</code>. Four encoder blocks with channels 32, 64, 128, 256, a 512 bottleneck, mirrored decoder with skip connections, batch norm, 1 × 1 head to 5 classes. About 7.8 million parameters. Small enough for CPU inference under a second per tile.</p>
+    <p><strong>Training.</strong> <code>ml/train.py</code> run on a free Colab T4. Loss is class-weighted cross-entropy plus Dice, because sea is over 90 percent of pixels. AdamW, one-cycle learning rate, 40 epochs, about an hour. Metric is per-class IoU and mIoU on the 110 test images, saved to <code>ml/metrics.json</code> and shown on the Detection Console.</p>
+    <p><strong>Serving.</strong> <code>ml/export.py</code> exports to ONNX. <code>ml/infer.py</code> loads it with onnxruntime, runs softmax, takes the oil class, removes blobs under 40 pixels, dilates once, and traces contours with OpenCV. Confidence is the mean oil probability inside the final mask. Returns mask PNG, pixel polygon, pixel area, confidence, and which engine answered.</p>
+    <p><strong>Fallback.</strong> If the model file is missing or fails, <code>ml/heuristic.py</code> runs adaptive thresholding for dark spots plus morphology. The API marks the response <code>engine: "heuristic"</code> and the console shows it in amber. This is a safety net and an ablation, never hidden.</p>
+    <p><strong>Optional.</strong> Train a second model with segmentation_models_pytorch and a ResNet18 encoder as a comparison row in the metrics table.</p>
+  </div>
+</div>
+
+<div class="module">
+  <div class="head"><h3>Scene ingest and watch zones</h3><div class="stack">Copernicus Data Space OData API · rasterio · APScheduler</div></div>
+  <div class="body">
+    <p><strong>What.</strong> The automation that makes stage 1 real.</p>
+    <p><strong>How.</strong> A watch zone is a polygon with a name, saved by the admin. Every 6 hours the scheduler queries Copernicus for Sentinel-1 GRD IW products intersecting each zone since its <code>last_checked</code>. For a new product it downloads only the VV measurement band with a windowed read, clips to the zone, scales to 8-bit with a fixed dB stretch, tiles to 256 px with georeference kept, and queues each tile for detection. Free Copernicus account, token in <code>CDSE_TOKEN</code>.</p>
+    <p><strong>Demo.</strong> Four real Sentinel-1 tiles over the Gujarat and Mumbai offshore shipping lanes are bundled in <code>ml/samples/</code> with their bounding boxes. The console's "New scene received" button calls the same <code>process_tile</code> function the scheduler calls.</p>
+  </div>
+</div>
+
+<div class="module">
+  <div class="head"><h3>Georeferencing</h3><div class="stack">rasterio · shapely · pyproj</div></div>
+  <div class="body">
+    <p><strong>What.</strong> Turning pixel results into geography.</p>
+    <p><strong>How.</strong> <code>ml/geo.py</code>. If the tile is a GeoTIFF, the affine transform from rasterio maps pixel corners to lon/lat. If it is a plain PNG sample, the stored bounding box is interpolated. The pixel ring becomes a shapely polygon, is simplified with a 1-pixel tolerance, and closed. Area is computed after projecting to the local UTM zone with pyproj, never in degrees. Centroid, long-axis heading from the minimum rotated rectangle, and bounding box are returned as GeoJSON.</p>
+  </div>
+</div>
+
+<div class="module">
+  <div class="head"><h3>Drift backtracking</h3><div class="stack">Open-Meteo Marine API · Open-Meteo Forecast API · NumPy</div></div>
+  <div class="body">
+    <p><strong>What.</strong> Where the oil was 6, 12 and 24 hours before the image was taken.</p>
+    <p><strong>How.</strong> <code>services/drift.py</code>. Fetch hourly surface current u and v from Open-Meteo Marine and 10 m wind u and v from Open-Meteo Forecast for the slick centroid across the window. Both are free with no key and have a historical endpoint. Slick velocity is current plus 3 percent of wind, the standard leeway coefficient. Integrate the centroid backwards in 15-minute steps. Uncertainty grows as an ellipse with semi-axes of 0.5 km per hour along the drift direction and 0.3 km per hour across it. Output three GeoJSON ellipses tagged with their hour. The slick's long-axis heading is passed along as the likely vessel course.</p>
+    <p><strong>Honest limit.</strong> This is a first-order model. OpenDrift is the research-grade alternative and is the stated upgrade path.</p>
+  </div>
+</div>
+
+<div class="module">
+  <div class="head"><h3>AIS ingestion</h3><div class="stack">AISStream.io websocket · websockets · Motor · scenario generator</div></div>
+  <div class="body">
+    <p><strong>What.</strong> Live positions for the Vessels page and stored tracks for correlation.</p>
+    <p><strong>How, live.</strong> <code>services/ais_collector.py</code> keeps one websocket to AISStream subscribed to the bounding boxes of all watch zones. Position reports are upserted into <code>ais_positions</code> with a 7-day TTL. Static reports update <code>vessels</code> with name, IMO, type, dimensions, flag from MMSI prefix, destination and draft. Free API key in <code>AISSTREAM_API_KEY</code>.</p>
+    <p><strong>How, history.</strong> AISStream has no history. <code>scripts/gen_scenario.py</code> generates a realistic 36-hour scenario: eight vessels on plausible lanes, one tanker that switches AIS off for 40 minutes while crossing the drift origin, slows, and shows a draft decrease. The scenario writes to the same collections the collector writes to, so the correlation code cannot tell them apart. The Investigation page labels the incident "demo scenario". The collector runs continuously from deployment day so a few weeks of real positions exist by the finale.</p>
+  </div>
+</div>
+
+<div class="module">
+  <div class="head"><h3>Categorisation and risk ranking</h3><div class="stack">Plain Python · NumPy · shapely</div></div>
+  <div class="body">
+    <p><strong>What.</strong> Stage 5. Deterministic, explainable, no black box.</p>
+    <p><strong>Candidates.</strong> Every vessel with at least one position inside any origin ellipse between 30 hours before and the acquisition time, plus any vessel whose track segment crosses an ellipse even if no report fell inside it, which catches AIS gaps.</p>
+    <p><strong>Categorise.</strong> Type from AIS ship type code grouped into tanker, cargo, fishing, passenger, tug, other. Behaviour from the track: transiting, loitering under 2 knots for over an hour, anchored, dark if any gap over 20 minutes inside the window.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Feature</th><th>Computed as</th><th>Weight</th></tr></thead>
+      <tbody>
+        <tr><td>Spatial fit</td><td>1 minus normalised closest approach of the track to the best-matching origin ellipse</td><td class="num">25</td></tr>
+        <tr><td>Temporal fit</td><td>Minutes inside the ellipse during its time window, capped</td><td class="num">15</td></tr>
+        <tr><td>AIS gap</td><td>Longest gap inside the window, minutes over 20, capped at 120</td><td class="num">20</td></tr>
+        <tr><td>Heading match</td><td>Cosine similarity between vessel course near the zone and the slick's long axis</td><td class="num">10</td></tr>
+        <tr><td>Manoeuvre</td><td>Speed drop over 3 knots or course change over 30° within the zone</td><td class="num">10</td></tr>
+        <tr><td>Draft change</td><td>Reported draft decrease over the window, tankers only</td><td class="num">8</td></tr>
+        <tr><td>Type prior</td><td>Tanker 1.0, cargo 0.7, passenger 0.4, tug 0.3, fishing 0.2</td><td class="num">8</td></tr>
+        <tr><td>History</td><td>Prior incidents in our database for the same MMSI</td><td class="num">4</td></tr>
+      </tbody>
+    </table></div>
+    <p>Score is the weighted sum on a 0 to 100 scale. Tiers: <span class="tier crit">prime suspect ≥ 65</span> &nbsp; <span class="tier warn">person of interest 35 to 64</span> &nbsp; <span class="tier ok">cleared &lt; 35</span>. The response includes every feature's raw value, normalised value and contribution, and the UI draws them as bars. Weights live in one config file so they can be tuned in a minute.</p>
+  </div>
+</div>
+
+<div class="module">
+  <div class="head"><h3>Investigation and incidents</h3><div class="stack">FastAPI · Motor · React</div></div>
+  <div class="body">
+    <p><strong>What.</strong> The incident lifecycle: detected, under investigation, inspection requested, closed.</p>
+    <p><strong>How.</strong> Creating an incident from a detection runs drift and ranking once and stores the results, so the page loads instantly and the numbers never change under the officer. "Re-run ranking" recomputes on demand. Notes, status changes and inspection requests append to an <code>events</code> array with user and time. SHA-256 of the source tile and the mask PNG are stored at creation and printed in the report.</p>
+  </div>
+</div>
+
+<div class="module">
+  <div class="head"><h3>Assistant</h3><div class="stack">Anthropic SDK · claude-sonnet-5 · tool use</div></div>
+  <div class="body">
+    <p><strong>What.</strong> A drawer where the officer asks questions in plain language about the open incident.</p>
+    <p><strong>How.</strong> Server-side only in <code>routers/assistant.py</code>. The system prompt explains the platform and the ranking features. Three tools: <code>get_incident</code>, <code>get_ranking</code>, <code>get_vessel</code>. The model calls tools, the server executes them against Mongo, and the answer streams back. The model never sees raw AIS beyond the current incident. If <code>ANTHROPIC_API_KEY</code> is absent, the drawer shows "Assistant unavailable in this deployment" and nothing else breaks. Built in the last week.</p>
+  </div>
+</div>
+
+<div class="module">
+  <div class="head"><h3>Reports</h3><div class="stack">React print stylesheet · html2pdf.js</div></div>
+  <div class="body">
+    <p><strong>What.</strong> A PDF the officer attaches to an inspection request.</p>
+    <p><strong>How.</strong> A <code>/app/reports/:id/print</code> route renders the report as a clean A4 page: SAR image and mask, map snapshot captured from Cesium's canvas, slick facts, drift assumptions, ranking table with feature bars, officer notes, source hashes, generated-by and timestamp. html2pdf.js renders it to PDF in the browser. The backend stores report metadata so the Reports page lists them.</p>
+  </div>
+</div>
+
+<div class="module">
+  <div class="head"><h3>Infrastructure</h3><div class="stack">GitHub monorepo · GitHub Actions · Docker · Vercel · Render · MongoDB Atlas</div></div>
+  <div class="body">
+    <p><strong>What.</strong> One repo, two deployments, one database.</p>
+    <p><strong>How.</strong> Frontend deploys to Vercel from <code>frontend/</code> on every push to main with <code>VITE_API_BASE</code> set to the Render URL. Backend deploys to Render as a Docker service from <code>backend/Dockerfile</code> on <code>python:3.12-slim</code> with onnxruntime, not torch, so the image stays under 600 MB and memory under 400 MB. Start with the Render starter plan to avoid cold starts on stage. Atlas M0 cluster with IP allowlist open and a dedicated database user. GitHub Actions runs ruff, pytest, tsc and vite build on every pull request.</p>
+    <div class="kv">
+      <div class="k">Env</div><div><code>MONGODB_URI</code> · <code>JWT_SECRET</code> · <code>CORS_ORIGINS</code> · <code>AISSTREAM_API_KEY</code> · <code>CDSE_TOKEN</code> · <code>ANTHROPIC_API_KEY</code> optional · <code>VITE_API_BASE</code> on Vercel</div>
+    </div>
+  </div>
+</div>
+
+<h2 id="ui">UI direction</h2>
+<p>An operations console, not a marketing site. Officers use it in an ops room, often at night, with radar imagery and a globe on screen. The app is dark-first but restrained: deep navy ground, cool grey-blue panels, one amber accent reserved for alerts and suspects, teal for sea and normal state. Radar tiles are greyscale, so the palette stays quiet and lets the imagery read. The landing page is lighter and more editorial because judges see it first.</p>
+<div class="tbl"><table>
+  <thead><tr><th>Element</th><th>Decision</th></tr></thead>
+  <tbody>
+    <tr><td>Headings</td><td>Barlow Semi Condensed. Reads as instrumentation and saves width inside panels.</td></tr>
+    <tr><td>Body</td><td>Source Sans 3 or IBM Plex Sans.</td></tr>
+    <tr><td>Data</td><td>IBM Plex Mono with tabular numerals for MMSI, IMO, coordinates, timestamps, area, confidence. Units on every number. Coordinates as decimal degrees to four places with a copy button. Timestamps in UTC with IST on hover.</td></tr>
+    <tr><td>State as form</td><td>Tier gets a chip, an icon and a colour: red prime suspect, amber person of interest, green cleared. Engine gets a badge: teal U-Net or amber Heuristic. Incident status is a left stripe on its row. Colour is never the only signal.</td></tr>
+    <tr><td>Shell</td><td>Collapsible 240 px sidebar with icons and labels. Top bar with the active watch zone, three live status dots for model, database and AIS feed, and the user menu showing the role. Map screens have no page-level scroll.</td></tr>
+    <tr><td>Components</td><td>Tailwind with a token file for the palette. shadcn/ui for dialogs, tabs, tables, sliders and the command palette. lucide-react icons. Recharts for the two charts. Framer Motion only for the mask reveal, the drift ellipse fade and list reorder. Cmd+K jumps to any vessel or incident.</td></tr>
+  </tbody>
+</table></div>
+<h3>Key screens</h3>
+<div class="tbl"><table>
+  <thead><tr><th>Screen</th><th>Layout</th></tr></thead>
+  <tbody>
+    <tr><td>Login</td><td>Split. Left half a real Sentinel-1 tile with a faint slick, right half the form with the demo officer button under the password field.</td></tr>
+    <tr><td>Dashboard</td><td>Four KPI tiles, then two columns: open incidents with tier chips, and watch zone cards with last scene date and ships tracked. Trend chart and activity feed below.</td></tr>
+    <tr><td>Detection Console</td><td>Three panels. Left: bundled tile thumbnails and an upload drop zone. Centre: the SAR image on a canvas with mask overlay, opacity slider, per-class legend and traced polygon. Right: results card with area, confidence, engine badge, class pixel breakdown, model mIoU and the single Create incident button. The mask fades in when inference returns.</td></tr>
+    <tr><td>Live Map</td><td>Full-bleed globe. Floating panels only: layer toggles top left, legend bottom left, time slider bottom centre, vessel card top right on click.</td></tr>
+    <tr><td>Investigation</td><td>Three columns. Evidence left: tile, mask, slick facts, drift assumptions. Ranked list centre: tier chip, name, type, score, eight small feature bars per row. Vessel detail right: identity, mini map replaying the track, timeline strip with the AIS gap as a red interval.</td></tr>
+    <tr><td>Vessels</td><td>Dense table with sticky header, search by name or MMSI, type and flag filters, click through to the map.</td></tr>
+    <tr><td>Reports</td><td>List, plus an A4 print view on white so the PDF is legible.</td></tr>
+    <tr><td>Admin</td><td>Four tabs: Users, Watch zones with a small map to draw polygons, Audit log, System health.</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="data">Data model</h2>
+<div class="tbl"><table>
+  <thead><tr><th>Collection</th><th>Key fields</th><th>Indexes</th></tr></thead>
+  <tbody>
+    <tr><td><code>users</code></td><td>email, password_hash, name, role, org, active, created_at, last_login</td><td>unique email</td></tr>
+    <tr><td><code>watch_zones</code></td><td>name, geometry (Polygon), last_checked, created_by</td><td>2dsphere geometry</td></tr>
+    <tr><td><code>scenes</code></td><td>product_id, acquired_at, footprint, zone_id, tiles_processed, source</td><td>product_id, acquired_at</td></tr>
+    <tr><td><code>detections</code></td><td>scene_id, tile_id, geometry (Polygon), centroid, area_km2, heading_deg, confidence, engine, mask_png, class_pixels, created_by, created_at, tile_sha256</td><td>2dsphere geometry, created_at</td></tr>
+    <tr><td><code>incidents</code></td><td>detection_id, status, zone_id, origin_zones [3 ellipses], drift_inputs, ranking [per vessel], assigned_to, events [], is_demo, created_at</td><td>status, created_at, 2dsphere origin_zones.geometry</td></tr>
+    <tr><td><code>vessels</code></td><td>mmsi, imo, name, callsign, type_code, type_group, flag, length, width, destination, last_seen</td><td>unique mmsi, name text</td></tr>
+    <tr><td><code>ais_positions</code></td><td>mmsi, ts, geometry (Point), sog, cog, heading, nav_status, draft, source</td><td>(mmsi, ts), 2dsphere geometry, TTL 7 days on live source</td></tr>
+    <tr><td><code>reports</code></td><td>incident_id, generated_by, generated_at, pdf_size, hashes</td><td>incident_id</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="api">API surface</h2>
+<div class="tbl"><table>
+  <thead><tr><th>Method and path</th><th>Role</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>POST /api/auth/login</code></td><td>public</td><td>Returns token and user</td></tr>
+    <tr><td><code>GET /api/auth/me</code></td><td>any</td><td>Current user</td></tr>
+    <tr><td><code>GET /api/health</code></td><td>public</td><td>Database, model and collector status</td></tr>
+    <tr><td><code>GET /api/overview</code></td><td>officer</td><td>Dashboard numbers and recent activity</td></tr>
+    <tr><td><code>GET /api/detect/samples</code></td><td>officer</td><td>Bundled Sentinel-1 tiles with bboxes</td></tr>
+    <tr><td><code>POST /api/detect</code></td><td>officer</td><td>Multipart image or sample_id → mask, polygon, area, confidence, engine. Persists a detection.</td></tr>
+    <tr><td><code>POST /api/incidents</code></td><td>officer</td><td>From detection_id. Runs drift and ranking. Returns incident.</td></tr>
+    <tr><td><code>GET /api/incidents</code></td><td>officer</td><td>List with filters</td></tr>
+    <tr><td><code>GET /api/incidents/{id}</code></td><td>officer</td><td>Full evidence pack</td></tr>
+    <tr><td><code>GET /api/incidents/{id}/tracks</code></td><td>officer</td><td>Candidate vessel tracks for replay</td></tr>
+    <tr><td><code>POST /api/incidents/{id}/rerank</code></td><td>officer</td><td>Recompute ranking</td></tr>
+    <tr><td><code>POST /api/incidents/{id}/events</code></td><td>officer</td><td>Note, status change, inspection request</td></tr>
+    <tr><td><code>GET /api/vessels/live</code></td><td>officer</td><td>Latest position per vessel inside watch zones</td></tr>
+    <tr><td><code>GET /api/vessels/{mmsi}</code></td><td>officer</td><td>Identity and recent track</td></tr>
+    <tr><td><code>GET /api/reports</code> · <code>POST /api/reports</code></td><td>officer</td><td>List and register generated reports</td></tr>
+    <tr><td><code>POST /api/assistant/chat</code></td><td>officer</td><td>Streams an answer grounded in the incident</td></tr>
+    <tr><td><code>GET/POST /api/admin/users</code> · <code>PATCH /api/admin/users/{id}</code></td><td>admin</td><td>User provisioning</td></tr>
+    <tr><td><code>GET/POST /api/admin/zones</code></td><td>admin</td><td>Watch zones</td></tr>
+    <tr><td><code>GET /api/admin/audit</code></td><td>admin</td><td>Who did what</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="repo">Repository layout</h2>
+<pre>sagarnetra/
+├── frontend/                 React + Vite, deploys to Vercel
+│   ├── src/auth/             AuthProvider, RequireAuth, RequireRole
+│   ├── src/lib/api.ts        typed client, bearer header, 401 handling
+│   ├── src/map/              MapView + layer hooks (slick, drift, vessels, tracks)
+│   ├── src/pages/            Landing, Login, Dashboard, DetectionConsole, LiveMap,
+│   │                         Incidents, Investigation, Vessels, Reports, Admin
+│   ├── src/store/            Zustand slices
+│   └── public/sar/           bundled sample tiles for the console
+├── backend/                  FastAPI, deploys to Render (Docker)
+│   ├── app/main.py           app factory, routers, scheduler, indexes
+│   ├── app/routers/          auth, admin, overview, detect, incidents, vessels, reports, assistant
+│   ├── app/services/         drift.py, ranking.py, ais_collector.py, ingest.py, incidents.py
+│   ├── app/security.py       hashing + JWT       app/deps.py  get_current_user, require_role
+│   ├── app/db.py             Motor client + ensure_indexes
+│   ├── scripts/              seed_db.py, gen_scenario.py, verify_api.py
+│   ├── tests/                pytest against in-memory Mongo
+│   └── Dockerfile            python:3.12-slim + onnxruntime
+├── ml/                       model code, trained on Colab
+│   ├── unet.py  dataset.py  train.py  export.py  infer.py  heuristic.py  geo.py
+│   ├── weights/unet_sar.onnx metrics.json
+│   ├── samples/              4 Sentinel-1 tiles + bboxes.json
+│   └── notebooks/train_colab.ipynb
+├── docker-compose.yml        local Mongo
+└── .github/workflows/ci.yml  ruff, pytest, tsc, vite build</pre>
+
+<h2 id="schedule">Build schedule</h2>
+<p>Ten weeks from 8 September to 16 November 2026, leaving buffer before the grand finale. Two tracks run in parallel from day one because model training is the longest single dependency.</p>
+<ul class="timeline">
+  <li><span class="when">Week 1<br/>8 to 14 Sep</span><div class="what"><strong>Foundations and dataset request</strong>Repo, CI, Docker Compose, Atlas cluster, Render and Vercel projects wired to empty apps. Request Krestenitis dataset. Write unet.py and dataset.py. Frontend shell with sidebar, routing and MSW mocks for every endpoint.<div class="done">Done when: hello-world deploys on both hosts, dataset request sent.</div></div></li>
+  <li><span class="when">Week 2<br/>15 to 21 Sep</span><div class="what"><strong>Auth and first training run</strong>Users collection, login, JWT, roles, seed script, Login page, RequireAuth. Colab notebook trains for 40 epochs; record mIoU. Export ONNX.<div class="done">Done when: officer can log in on the deployed URL; metrics.json exists.</div></div></li>
+  <li><span class="when">Week 3<br/>22 to 28 Sep</span><div class="what"><strong>Detection end to end</strong>infer.py with onnxruntime, heuristic fallback, geo.py, POST /api/detect, bundled samples, Detection Console with mask overlay and engine badge.<div class="done">Done when: a bundled tile returns a polygon and area on the deployed console.</div></div></li>
+  <li><span class="when">Week 4<br/>29 Sep to 5 Oct</span><div class="what"><strong>Map and drift</strong>Cesium MapView, slick layer, Open-Meteo drift service, three origin ellipses drawn. Incident creation from a detection.<div class="done">Done when: Create incident on the console lands you on the globe with slick and ellipses.</div></div></li>
+  <li><span class="when">Week 5<br/>6 to 12 Oct</span><div class="what"><strong>AIS live and scenario</strong>AISStream collector running on Render, vessels and ais_positions filling, Vessels page and vessel layer on the map. gen_scenario.py with the guilty tanker and its AIS gap.<div class="done">Done when: real ships move on the globe; the demo scenario loads from seed.</div></div></li>
+  <li><span class="when">Week 6<br/>13 to 19 Oct</span><div class="what"><strong>Ranking and Investigation</strong>Candidate query, categorisation, eight features, tiers, ranking stored on the incident. Investigation page with feature bars, track replay and time slider.<div class="done">Done when: the tanker ranks first with the AIS gap visible in its bar and on the track.</div></div></li>
+  <li><span class="when">Week 7<br/>20 to 26 Oct</span><div class="what"><strong>Incident lifecycle, reports, admin</strong>Events, status, inspection request, hashes. Print route and PDF. Admin users, zones, audit log. Dashboard numbers from real collections.<div class="done">Done when: an officer closes the loop from detection to PDF without touching the database.</div></div></li>
+  <li><span class="when">Week 8<br/>27 Oct to 2 Nov</span><div class="what"><strong>Scene ingest</strong>Copernicus query, windowed download, clip, tile, scheduler. Run against a real recent scene over the Gujarat zone.<div class="done">Done when: a real scene appears in the scenes collection with its tiles processed automatically.</div></div></li>
+  <li><span class="when">Week 9<br/>3 to 9 Nov</span><div class="what"><strong>Assistant, polish, tests</strong>Claude drawer with three tools. Empty states, error messages, loading states. Pytest coverage on ranking and drift. Landing page copy and screenshots.<div class="done">Done when: CI green, no console errors on any page, assistant answers "why is this ship first".</div></div></li>
+  <li><span class="when">Week 10<br/>10 to 16 Nov</span><div class="what"><strong>Demo hardening</strong>Rehearse the three-minute script ten times. Offline fallback: seed data and samples work with no external API. Model card, README architecture diagram, pitch deck.<div class="done">Done when: the demo runs on a phone hotspot without a hitch.</div></div></li>
+</ul>
+
+<h2 id="demo">Three-minute demo</h2>
+<ol class="steps">
+  <li><strong>0:00</strong> Logged in as admin. Flash the Admin page: users table with the officer account, system health all green. Log out, sign in as the officer. Dashboard. "A slick was picked up on last night's Sentinel-1 pass over the Gujarat lane." Click the alert.</li>
+  <li><strong>0:20</strong> Detection Console. Show the raw radar tile. Press Run. Mask appears in under a second, polygon traced, 4.2 km², confidence 0.91, engine U-Net, mIoU from our test set in the corner.</li>
+  <li><strong>0:50</strong> Create incident. Globe flies to the slick. Three origin ellipses fade back in time. "This is where the oil was 6, 12 and 24 hours ago, using last night's wind and current."</li>
+  <li><strong>1:20</strong> Investigation. Eight ships were in those zones. Ranked list. Top one is a tanker: transponder dark for 40 minutes crossing the 12-hour zone, heading matches the slick's axis, draft dropped. Point at each bar.</li>
+  <li><strong>2:10</strong> Track replay. Scrub the slider. The tanker's track vanishes exactly where the ellipse is, then reappears.</li>
+  <li><strong>2:35</strong> Ask the assistant "why is this ship first". It reads the same features back in a sentence.</li>
+  <li><strong>2:50</strong> Mark for inspection, export PDF. "This is what the officer sends to the boarding team. We give leads in hours instead of weeks; the sample match confirms it."</li>
+</ol>
+
+<h2 id="risks">Risks and honest claims</h2>
+<div class="callout">
+  <p><strong>Say these things before the judges ask.</strong></p>
+  <p>Sentinel-1 revisit over India is 6 to 12 days, so this is a monitoring system, not a live camera. The demo incident's ship tracks are a generated scenario because free historical AIS does not exist for Indian waters; the live feed is real. The drift model is first-order. The system produces leads, and under MARPOL the culprit is confirmed by an oil sample match on board.</p>
+</div>
+<div class="tbl"><table>
+  <thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+  <tbody>
+    <tr><td>Dataset access is delayed</td><td>Request in week 1. Meanwhile build against a public SAR oil-spill sample set for pipeline plumbing, and swap in Krestenitis for the real training run.</td></tr>
+    <tr><td>Model mIoU is disappointing</td><td>Heuristic fallback keeps the demo alive. Try the ResNet18 encoder variant. Report the number honestly and show the confusion matrix.</td></tr>
+    <tr><td>Render memory or cold start</td><td>onnxruntime not torch, starter plan, health check pinger. Rehearse with the service already warm.</td></tr>
+    <tr><td>Venue network fails</td><td>Everything needed for the script is seeded or bundled. External APIs are only for live vessels and fresh weather, both of which degrade to cached values.</td></tr>
+    <tr><td>Cesium bundle is heavy</td><td>Lazy-load the map route. Landing and login never load Cesium.</td></tr>
+    <tr><td>Scope creep</td><td>The schedule's "done when" lines are the acceptance tests. Nothing else gets built until the week's line is true.</td></tr>
+  </tbody>
+</table></div>
+
+<footer>SAGARNETRA build plan · prepared 7 September 2026 · SIH 2026 PS SIH26143</footer>
+</main>
+</div>
