@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import createGlobe from 'cobe'
 import { motion } from 'motion/react'
+import { Link } from 'react-router'
+import { ArrowUpRight, ZoomIn } from 'lucide-react'
 import type { Incident, Tier } from '../lib/types'
 
 /**
@@ -11,20 +13,30 @@ import type { Incident, Tier } from '../lib/types'
  * Reading those is exact and needs no re-derivation of its projection. Front/back visibility is the
  * one thing cobe does not expose per frame, so we compute the camera-space z ourselves — that only
  * needs the sign, so it is calibration-free.
+ *
+ * Zoom is real, not a CSS trick: it drives cobe's own `scale` camera parameter every frame, so the
+ * rendered sphere itself magnifies. What it cannot do is reveal actual satellite imagery close up —
+ * cobe draws a fixed low-resolution world map on a sphere; it has no closer-in tiles to switch to,
+ * the way Google Earth or Cesium does. Past a threshold zoom we hand off to the real thing instead
+ * of pretending the globe has detail it doesn't: a link into the incident's own coordinate-accurate
+ * plan view. Cesium is the tracked upgrade path for a true close-up reveal (see docs/DECISIONS.md).
  */
 
 type TierKey = Tier | 'none'
 
 const TIER: Record<TierKey, { rgb: [number, number, number]; hex: string; label: string }> = {
-  prime: { rgb: [0.878, 0.42, 0.42], hex: '#e06b6b', label: 'Prime suspect' },
-  poi: { rgb: [0.89, 0.639, 0.192], hex: '#e3a331', label: 'Person of interest' },
-  cleared: { rgb: [0.365, 0.745, 0.522], hex: '#5dbe85', label: 'Cleared' },
-  none: { rgb: [0.31, 0.702, 0.749], hex: '#4fb3bf', label: 'Not ranked' },
+  prime: { rgb: [0.78, 0.19, 0.12], hex: '#c7301f', label: 'Prime suspect' },
+  poi: { rgb: [0.68, 0.23, 0.01], hex: '#ae3a02', label: 'Person of interest' },
+  cleared: { rgb: [0.12, 0.54, 0.33], hex: '#1f8a54', label: 'Cleared' },
+  none: { rgb: [0.12, 0.42, 0.46], hex: '#1e6b74', label: 'Not ranked' },
 }
 
 const tierOf = (i: Incident): TierKey => i.top_tier ?? 'none'
 const SPIN = 0.0022
 const TAU = Math.PI * 2
+const MIN_ZOOM = 1
+const MAX_ZOOM = 4.5
+const ZOOM_LINK_THRESHOLD = 2.2
 
 /** cobe's lat/lon -> unit vector (mirrors its internal `U`). */
 function unitVec(lat: number, lon: number) {
@@ -60,6 +72,7 @@ function shortestDelta(from: number, to: number) {
 
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+const dist = (a: PointerEvent, b: PointerEvent) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
 
 export default function SpillGlobe({
   incidents,
@@ -84,6 +97,13 @@ export default function SpillGlobe({
   const velRef = useRef(0)
   const flightRef = useRef<{ p0: number; t0: number; dp: number; dt: number; start: number } | null>(null)
 
+  // Zoom: a target driven by wheel/pinch, smoothly chased each frame — steadier than snapping
+  // straight to noisy per-event wheel/touch deltas.
+  const zoomRef = useRef(1)
+  const zoomTargetRef = useRef(1)
+  const pinchRef = useRef<{ pointers: Map<number, PointerEvent>; d0: number; z0: number } | null>(null)
+  const [zoomedIn, setZoomedIn] = useState(false)
+
   const [hovered, setHovered] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
   const [reduced, setReduced] = useState(
@@ -95,6 +115,7 @@ export default function SpillGlobe({
     () => incidents.filter((i) => Array.isArray(i.centroid) && i.centroid.length === 2),
     [incidents],
   )
+  const selectedInc = placed.find((i) => i.id === selectedId) ?? null
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -103,8 +124,9 @@ export default function SpillGlobe({
     return () => mq.removeEventListener('change', on)
   }, [])
 
-  // Fly the selected slick to the centre.
+  // Fly the selected slick to the centre; zoom resets so re-selecting always starts from the same view.
   useEffect(() => {
+    zoomTargetRef.current = 1
     if (!selectedId) {
       spinRef.current = true
       return
@@ -173,13 +195,16 @@ export default function SpillGlobe({
       height: 1000,
       phi: phiRef.current,
       theta: thetaRef.current,
+      scale: zoomRef.current,
       dark: 1,
       diffuse: 1.15,
       mapSamples: 22000,
       mapBrightness: 5.2,
-      baseColor: [0.13, 0.2, 0.33],
-      markerColor: [0.89, 0.64, 0.19],
-      glowColor: [0.07, 0.13, 0.24],
+      // Warm dark charcoal, not navy — the sphere reads as part of the grayscale+orange system,
+      // a dark instrument face against the light console rather than a leftover blue theme.
+      baseColor: [0.16, 0.13, 0.11],
+      markerColor: [1, 0.408, 0.012],
+      glowColor: [0.09, 0.06, 0.04],
       markerElevation: 0,
       markers: dataRef.current.markers,
     })
@@ -216,7 +241,12 @@ export default function SpillGlobe({
         }
       }
 
-      globe.update({ phi: phiRef.current, theta: thetaRef.current })
+      // Chase the zoom target — smooths noisy wheel/touch deltas into one steady motion.
+      zoomRef.current += (zoomTargetRef.current - zoomRef.current) * (reduced ? 1 : 0.16)
+      const nowZoomedIn = zoomRef.current > ZOOM_LINK_THRESHOLD
+      setZoomedIn((prev) => (prev === nowZoomedIn ? prev : nowZoomedIn))
+
+      globe.update({ phi: phiRef.current, theta: thetaRef.current, scale: zoomRef.current })
 
       if (anchors.current.size === 0) findAnchors()
 
@@ -260,10 +290,61 @@ export default function SpillGlobe({
   }, [sig, reduced])
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (pinchRef.current) return // a second finger down starts a pinch, not a drag
     dragRef.current = { x: e.clientX, y: e.clientY, phi: phiRef.current, theta: thetaRef.current }
     flightRef.current = null
     velRef.current = 0
     e.currentTarget.style.cursor = 'grabbing'
+  }, [])
+
+  // Wheel-to-zoom (native listener: React's synthetic wheel handler is passive, so it cannot
+  // preventDefault to stop the page scrolling under the globe) and two-finger pinch-to-zoom.
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const factor = Math.pow(1.0015, -e.deltaY)
+      zoomTargetRef.current = clamp(zoomTargetRef.current * factor, MIN_ZOOM, MAX_ZOOM)
+    }
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+
+    const activePointers = new Map<number, PointerEvent>()
+    const onDown = (e: PointerEvent) => {
+      activePointers.set(e.pointerId, e)
+      if (activePointers.size === 2) {
+        dragRef.current = null // two fingers: stop any single-finger drag/rotate
+        const [a, b] = [...activePointers.values()]
+        pinchRef.current = { pointers: activePointers, d0: dist(a, b), z0: zoomTargetRef.current }
+      }
+    }
+    const onMove = (e: PointerEvent) => {
+      if (!activePointers.has(e.pointerId)) return
+      activePointers.set(e.pointerId, e)
+      const pinch = pinchRef.current
+      if (pinch && activePointers.size >= 2) {
+        const [a, b] = [...activePointers.values()]
+        const d1 = dist(a, b)
+        if (pinch.d0 > 0) zoomTargetRef.current = clamp((d1 / pinch.d0) * pinch.z0, MIN_ZOOM, MAX_ZOOM)
+      }
+    }
+    const onUp = (e: PointerEvent) => {
+      activePointers.delete(e.pointerId)
+      if (activePointers.size < 2) pinchRef.current = null
+    }
+
+    canvas.addEventListener('pointerdown', onDown)
+    window.addEventListener('pointermove', onMove, { passive: true })
+    window.addEventListener('pointerup', onUp, { passive: true })
+    window.addEventListener('pointercancel', onUp, { passive: true })
+    return () => {
+      canvas.removeEventListener('wheel', onWheel)
+      canvas.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
   }, [])
 
   useEffect(() => {
@@ -362,7 +443,7 @@ export default function SpillGlobe({
                   height: isSel || isHot ? 9 : 7,
                   background: tier.hex,
                   boxShadow: `0 0 ${isSel || isHot ? 14 : 7}px ${tier.hex}`,
-                  outline: '1.5px solid #0c1424',
+                  outline: '1.5px solid #14100c',
                 }}
               />
 
@@ -377,6 +458,24 @@ export default function SpillGlobe({
         })}
       </div>
 
+      {/* Past this zoom, the sphere has no more real detail to show — bridge to the actual
+          coordinate-accurate view instead of a globe that just looks blurrier. */}
+      {zoomedIn && selectedInc && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          className="absolute bottom-2 left-1/2 z-20 -translate-x-1/2"
+        >
+          <Link
+            to={`/app/incidents/${selectedInc.id}`}
+            className="flex items-center gap-1.5 rounded-full bg-ink px-3 py-1.5 font-mono text-[11px] font-medium text-bg shadow-lg hover:opacity-90"
+          >
+            <ArrowUpRight className="size-3.5" /> Open exact coordinates for {selectedInc.code}
+          </Link>
+        </motion.div>
+      )}
+
       {/* legend */}
       <div className="absolute bottom-2 left-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded border border-line bg-surface/85 px-2 py-1.5 font-mono text-[10px] text-ink-2 backdrop-blur">
         {(['prime', 'poi', 'none'] as TierKey[]).map((k) => (
@@ -390,8 +489,9 @@ export default function SpillGlobe({
         ))}
       </div>
 
-      <div className="absolute right-2 top-2 rounded border border-line bg-surface/85 px-2 py-1 font-mono text-[10px] text-ink-3 backdrop-blur">
-        {placed.length} slick{placed.length === 1 ? '' : 's'} · drag to spin · click a dot
+      <div className="absolute right-2 top-2 flex items-center gap-1 rounded border border-line bg-surface/85 px-2 py-1 font-mono text-[10px] text-ink-3 backdrop-blur">
+        <ZoomIn className="size-3" aria-hidden />
+        {placed.length} slick{placed.length === 1 ? '' : 's'} · drag to spin · scroll/pinch to zoom
       </div>
     </div>
   )

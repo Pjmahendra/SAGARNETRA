@@ -21,7 +21,7 @@ export default function Landing() {
     const size = 560
     const globe = createGlobe(canvas, {
       devicePixelRatio: 2, width: size * 2, height: size * 2, phi, theta: 0.32, dark: 1, diffuse: 1.1,
-      mapSamples: 18000, mapBrightness: 5, baseColor: [0.13, 0.2, 0.33], markerColor: [0.89, 0.64, 0.19], glowColor: [0.07, 0.13, 0.24],
+      mapSamples: 18000, mapBrightness: 5, baseColor: [0.16, 0.13, 0.11], markerColor: [1, 0.408, 0.012], glowColor: [0.09, 0.06, 0.04],
       markers: [
         { location: [21.05, 69.42], size: 0.07 }, { location: [18.84, 72.61], size: 0.04 }, { location: [13.21, 80.42], size: 0.04 },
       ],
