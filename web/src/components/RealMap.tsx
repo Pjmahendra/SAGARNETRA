@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react'
-import { CircleMarker, MapContainer, Polygon, Polyline, TileLayer, Tooltip } from 'react-leaflet'
+import { useMemo, useState, type ReactNode } from 'react'
+import { CircleMarker, MapContainer, Polygon, Polyline, ScaleControl, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import { ellipsePoints } from '../lib/geo'
 import type { LonLat, OriginZone, VesselType } from '../lib/types'
 import type { PlanTrack, PlanVessel } from './PlanView'
 
 type Basemap = 'satellite' | 'streets'
+
+const SLICK_PANE = 'slick'
 
 /** True-colour Esri World Imagery — real coastlines, water, terrain, no styling layer between us and the ground. */
 const BASEMAPS: Record<Basemap, { url: string; attribution: string; maxZoom: number }> = {
@@ -27,6 +29,40 @@ const TYPE_COLOR: Record<VesselType, string> = {
 /** Leaflet takes [lat, lon]; our data is [lon, lat] throughout. */
 const ll = ([lon, lat]: LonLat): [number, number] => [lat, lon]
 
+interface Cursor { lat: number; lon: number; zoom: number }
+
+/**
+ * Live cursor position readout. PlanView labels its graticule, so the real map needs the
+ * equivalent — decimal degrees to 4 places, per the project convention.
+ */
+function CursorReadout({ onChange }: { onChange: (c: Cursor | null) => void }) {
+  const map = useMapEvents({
+    mousemove: (e) => onChange({ lat: e.latlng.lat, lon: e.latlng.lng, zoom: map.getZoom() }),
+    mouseout: () => onChange(null),
+  })
+  return null
+}
+
+/**
+ * Leaflet paints every pane in its own stacking context, so `mix-blend-mode` set on a path
+ * blends against the (transparent) overlay pane and never reaches the tiles. Set on a pane
+ * of its own, between the tile pane (z 200) and the overlay pane (z 400), it does: the slick
+ * multiplies into the imagery like a real sheen darkening the water rather than replacing it,
+ * and vessels, tracks and ellipses still draw above it.
+ */
+function SlickPane({ children }: { children: ReactNode }) {
+  const map = useMap()
+  // Created during render, not in an effect: Leaflet throws on an unknown pane name, so the
+  // pane must exist before the child paths mount. getPane() first keeps it idempotent.
+  const pane = useMemo(() => {
+    const p = map.getPane(SLICK_PANE) ?? map.createPane(SLICK_PANE)
+    p.style.zIndex = '350'
+    p.style.mixBlendMode = 'multiply'
+    return p
+  }, [map])
+  return pane ? <>{children}</> : null
+}
+
 /**
  * Real, coordinate-accurate map: genuine satellite/street basemap tiles under our incident layers, via
  * Leaflet — real coastlines, water bodies and terrain colour, with correct scroll/pinch/double-click zoom
@@ -45,6 +81,7 @@ export default function RealMap({
   focus?: [number, number, number, number]
 }) {
   const [basemap, setBasemap] = useState<Basemap>('satellite')
+  const [cursor, setCursor] = useState<Cursor | null>(null)
   const bm = BASEMAPS[basemap]
   const { center, bounds } = useMemo(() => {
     const pts: LonLat[] = focus
@@ -64,6 +101,8 @@ export default function RealMap({
     <div className={className} style={{ position: 'relative' }}>
       <MapContainer center={center} zoom={11} bounds={bounds} className="size-full" scrollWheelZoom>
         <TileLayer key={basemap} attribution={bm.attribution} url={bm.url} maxZoom={bm.maxZoom} />
+        <ScaleControl position="bottomright" imperial={false} />
+        <CursorReadout onChange={setCursor} />
         {basemap === 'satellite' && (
           <TileLayer
             attribution=""
@@ -81,22 +120,32 @@ export default function RealMap({
             key={z.hours_before}
             positions={ellipsePoints(z).map(ll)}
             pathOptions={{
-              color: '#ae3a02',
+              // brighter over satellite imagery, where deep orange on dark water disappears
+              color: basemap === 'satellite' ? '#ff8a33' : '#ae3a02',
               weight: 1.5,
               dashArray: '6 4',
               fillColor: '#ff6803',
-              fillOpacity: z.hours_before <= 6 ? 0.16 : z.hours_before <= 12 ? 0.11 : 0.07,
+              fillOpacity: z.hours_before <= 6 ? 0.2 : z.hours_before <= 12 ? 0.14 : 0.09,
             }}
           >
-            <Tooltip permanent direction="center" className="!border-0 !bg-transparent !font-mono !text-[11px] !text-accent-deep !shadow-none">
+            <Tooltip permanent direction="center" className="!rounded !border-0 !bg-ink/70 !px-1.5 !py-0.5 !font-mono !text-[11px] !text-white !shadow-none">
               t−{z.hours_before}h
             </Tooltip>
           </Polygon>
         ))}
 
-      {/* slick polygon */}
+      {/* The slick, blended into the imagery rather than pasted on top: a soft feathered
+          halo (wide, faint strokes) fading into the water, then a multiply-blended body so
+          the sea texture still reads through it — the way a real sheen looks on the water. */}
       {polygon.length > 2 && (
-        <Polygon positions={polygon.map(ll)} pathOptions={{ color: '#14100c', weight: 1.5, fillColor: '#14100c', fillOpacity: 0.75 }} />
+        <SlickPane>
+          <Polygon positions={polygon.map(ll)} interactive={false} pane={SLICK_PANE}
+            pathOptions={{ color: '#14100c', weight: 22, opacity: 0.07, fill: false, lineJoin: 'round' }} />
+          <Polygon positions={polygon.map(ll)} interactive={false} pane={SLICK_PANE}
+            pathOptions={{ color: '#14100c', weight: 11, opacity: 0.13, fill: false, lineJoin: 'round' }} />
+          <Polygon positions={polygon.map(ll)} interactive={false} pane={SLICK_PANE}
+            pathOptions={{ color: '#0b0501', weight: 1, opacity: 0.55, fillColor: '#14100c', fillOpacity: 0.72 }} />
+        </SlickPane>
       )}
 
       {/* selected track, gap segments dashed and red */}
@@ -107,9 +156,10 @@ export default function RealMap({
               key={i}
               positions={[track.points[i].p, k.p].map(ll)}
               pathOptions={{
-                color: k.gap ? '#c7301f' : '#14100c',
+                // light track over dark imagery, dark track over the pale street map
+                color: k.gap ? (basemap === 'satellite' ? '#ff5a45' : '#c7301f') : basemap === 'satellite' ? '#f4f2ef' : '#14100c',
                 weight: k.gap ? 3 : 2,
-                opacity: k.gap ? 0.95 : 0.75,
+                opacity: k.gap ? 0.95 : 0.85,
                 dashArray: k.gap ? '8 6' : undefined,
               }}
             />
@@ -136,21 +186,24 @@ export default function RealMap({
       ))}
       </MapContainer>
 
-      <div className="absolute right-3 top-3 z-[500] flex overflow-hidden rounded-md border border-line bg-surface/90 text-[11px] font-medium shadow-sm backdrop-blur">
-        <button
-          type="button"
-          onClick={() => setBasemap('satellite')}
-          className={basemap === 'satellite' ? 'bg-ink px-2.5 py-1.5 text-bg' : 'px-2.5 py-1.5 text-ink-2 hover:text-ink'}
-        >
-          Satellite
-        </button>
-        <button
-          type="button"
-          onClick={() => setBasemap('streets')}
-          className={basemap === 'streets' ? 'bg-ink px-2.5 py-1.5 text-bg' : 'px-2.5 py-1.5 text-ink-2 hover:text-ink'}
-        >
-          Streets
-        </button>
+      {/* Top-centre: the two flanks are taken by the view toggle and the incident card. */}
+      <div className="absolute left-1/2 top-3 z-[500] flex -translate-x-1/2 overflow-hidden rounded-md border border-line bg-surface/90 text-[11px] font-medium shadow-sm backdrop-blur">
+        {(['satellite', 'streets'] as const).map((b) => (
+          <button
+            key={b}
+            type="button"
+            onClick={() => setBasemap(b)}
+            className={basemap === b ? 'bg-ink px-2.5 py-1.5 capitalize text-bg' : 'px-2.5 py-1.5 capitalize text-ink-2 hover:text-ink'}
+          >
+            {b}
+          </button>
+        ))}
+      </div>
+
+      <div className="absolute bottom-14 right-3 z-[500] rounded border border-line bg-surface/90 px-2 py-1 font-mono text-[11px] text-ink-2 shadow-sm backdrop-blur">
+        {cursor
+          ? `${Math.abs(cursor.lat).toFixed(4)}°${cursor.lat >= 0 ? 'N' : 'S'} ${Math.abs(cursor.lon).toFixed(4)}°${cursor.lon >= 0 ? 'E' : 'W'} · z${cursor.zoom}`
+          : 'move over the map for coordinates'}
       </div>
     </div>
   )

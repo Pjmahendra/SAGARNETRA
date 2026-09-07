@@ -17,11 +17,11 @@ export default function LiveMap() {
   const detail = useQuery({ queryKey: ['incident', open?.id], queryFn: () => api.incident(open!.id), enabled: !!open })
   const { selectedMmsi, selectMmsi, replayHours, setReplayHours } = useUi()
   const d = detail.data
-  // Plan view is the offline-safe default (hand-drawn, no network); Map view is a real,
-  // coordinate-accurate slippy map that needs to fetch tiles. An explicit choice, not a
-  // silent fallback — Plan view's SVG math was never built to zoom/pan correctly, Map
-  // view is, but only Plan view is guaranteed to work with no network at demo time.
-  const [mode, setMode] = useState<'plan' | 'map'>('plan')
+  // Map view (real satellite imagery, real coastlines/water, correct zoom/pan) is the
+  // default so the officer lands on the true ground picture immediately. Plan view stays
+  // one click away as the offline-safe fallback — hand-drawn, no tiles, no network needed —
+  // for when venue WiFi dies mid-demo.
+  const [mode, setMode] = useState<'plan' | 'map'>('map')
 
   const t = d ? new Date(d.detected_at).getTime() - replayHours * 3600_000 : 0
   const vessels: PlanVessel[] = useMemo(() => (d?.ranking ?? []).map((r) => {
@@ -62,7 +62,7 @@ export default function LiveMap() {
         <div className="mt-2 border-t border-line pt-2 text-[11px] text-ink-3">
           {mode === 'plan'
             ? 'Offline-safe plan view: real geometry, no basemap, no network needed.'
-            : 'Real OpenStreetMap tiles with correct scroll/pinch zoom. Needs network access.'}
+            : 'Real satellite imagery — true coastlines, water and terrain — with correct scroll/pinch zoom. Needs network access.'}
         </div>
       </div>
 
