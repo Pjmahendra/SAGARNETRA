@@ -39,12 +39,6 @@ export default function AppShell() {
   const overview = useQuery({ queryKey: ['overview'], queryFn: api.overview })
   const h = health.data
 
-  // An officer only ever sees the sectors they're posted to; admins see every watch zone.
-  const sectorLocked = user?.role === 'officer' && (user.zone_ids?.length ?? 0) > 0
-  const zoneOptions = sectorLocked
-    ? overview.data?.zones.filter((z) => user!.zone_ids.includes(z.id))
-    : overview.data?.zones
-
   const onLogout = () => { logout(); void navigate('/login', { replace: true }) }
 
   return (
@@ -94,14 +88,14 @@ export default function AppShell() {
 
             <span className="hidden h-6 w-px shrink-0 bg-line lg:block" aria-hidden />
 
-            <label className="relative hidden shrink-0 items-center md:flex" title={sectorLocked ? 'Your assigned sector' : 'Zone'}>
+            <label className="relative hidden shrink-0 items-center md:flex">
               <span className="sr-only">Zone</span>
               <select
                 value={zoneId}
                 onChange={(e) => setZone(e.target.value)}
                 className="appearance-none rounded-md border border-line bg-surface-2 py-1.5 pl-3 pr-7 font-mono text-xs text-ink"
               >
-                {(zoneOptions ?? [{ id: zoneId, name: 'Loading…' }]).map((z) => (
+                {(overview.data?.zones ?? [{ id: zoneId, name: 'Loading…' }]).map((z) => (
                   <option key={z.id} value={z.id}>{z.name}</option>
                 ))}
               </select>

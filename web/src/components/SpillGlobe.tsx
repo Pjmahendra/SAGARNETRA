@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import createGlobe from 'cobe'
 import { motion } from 'motion/react'
 import { Link } from 'react-router'
-import { Anchor, ArrowUpRight, ZoomIn } from 'lucide-react'
-import type { Incident, LonLat, Tier } from '../lib/types'
+import { ArrowUpRight, ZoomIn } from 'lucide-react'
+import type { Incident, Tier } from '../lib/types'
 
 /**
  * Interactive globe of detected slicks.
@@ -78,20 +78,11 @@ export default function SpillGlobe({
   incidents,
   selectedId,
   onSelect,
-  onZoomedIn,
-  homeCenter,
-  homeLabel,
   className,
 }: {
   incidents: Incident[]
   selectedId: string | null
   onSelect: (id: string | null) => void
-  /** Fires once, when the auto zoom-in on `selectedId` reaches max — the cue to navigate on to that incident's investigation. */
-  onZoomedIn?: (id: string) => void
-  /** An officer's sector centre [lon, lat]: the globe opens here and holds, instead of free-spinning, and returns here on deselect. Omit for an unrestricted (admin) view. */
-  homeCenter?: LonLat | null
-  /** Zone name shown alongside homeCenter, so the officer sees which sector they're locked to. */
-  homeLabel?: string
   className?: string
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -99,29 +90,19 @@ export default function SpillGlobe({
   const anchors = useRef(new Map<string, HTMLElement>())
   const dots = useRef(new Map<string, HTMLButtonElement>())
 
-  // First paint already faces the officer's sector when one is given, so there's no visible
-  // fly-in from some arbitrary default orientation on load.
-  const initialOrientation = homeCenter ? orientationFor(homeCenter[1], homeCenter[0]) : { phi: 3.9, theta: 0.32 }
-  const phiRef = useRef(initialOrientation.phi)
-  const thetaRef = useRef(initialOrientation.theta)
-  const spinRef = useRef(!homeCenter)
+  const phiRef = useRef(3.9)
+  const thetaRef = useRef(0.32)
+  const spinRef = useRef(true)
   const dragRef = useRef<{ x: number; y: number; phi: number; theta: number } | null>(null)
   const velRef = useRef(0)
   const flightRef = useRef<{ p0: number; t0: number; dp: number; dt: number; start: number } | null>(null)
 
-  // Zoom: a target driven by wheel/pinch (or the auto zoom-in on selection), smoothly chased
-  // each frame — steadier than snapping straight to noisy per-event wheel/touch deltas.
+  // Zoom: a target driven by wheel/pinch, smoothly chased each frame — steadier than snapping
+  // straight to noisy per-event wheel/touch deltas.
   const zoomRef = useRef(1)
   const zoomTargetRef = useRef(1)
   const pinchRef = useRef<{ pointers: Map<number, PointerEvent>; d0: number; z0: number } | null>(null)
   const [zoomedIn, setZoomedIn] = useState(false)
-  // Guards onZoomedIn to firing once per selection, and lets the render-loop closure (set up
-  // once per globe rebuild) read the latest selection/callback without being a rebuild trigger.
-  const firedZoomForRef = useRef<string | null>(null)
-  const liveRef = useRef({ selectedId, onZoomedIn })
-  useEffect(() => {
-    liveRef.current = { selectedId, onZoomedIn }
-  }, [selectedId, onZoomedIn])
 
   const [hovered, setHovered] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
@@ -143,34 +124,11 @@ export default function SpillGlobe({
     return () => mq.removeEventListener('change', on)
   }, [])
 
-  // Fly to the selected slick and ramp zoom all the way in — cinematic, and the cue that a
-  // hand-off to the investigation page (fired from the render loop below, once zoom arrives)
-  // is coming. Deselecting reverses both: zoom back out, and settle on the officer's sector
-  // if they have one, or resume idle spin if this is the unrestricted (admin) view.
+  // Fly the selected slick to the centre; zoom resets so re-selecting always starts from the same view.
   useEffect(() => {
-    firedZoomForRef.current = null
+    zoomTargetRef.current = 1
     if (!selectedId) {
-      zoomTargetRef.current = 1
-      if (homeCenter) {
-        spinRef.current = false
-        const [lon, lat] = homeCenter
-        const target = orientationFor(lat, lon)
-        if (reduced) {
-          phiRef.current = target.phi
-          thetaRef.current = target.theta
-          flightRef.current = null
-        } else {
-          flightRef.current = {
-            p0: phiRef.current,
-            t0: thetaRef.current,
-            dp: shortestDelta(phiRef.current, target.phi),
-            dt: target.theta - thetaRef.current,
-            start: performance.now(),
-          }
-        }
-      } else {
-        spinRef.current = true
-      }
+      spinRef.current = true
       return
     }
     const inc = placed.find((i) => i.id === selectedId)
@@ -178,12 +136,10 @@ export default function SpillGlobe({
     const [lon, lat] = inc.centroid
     const target = orientationFor(lat, lon)
     spinRef.current = false
-    zoomTargetRef.current = MAX_ZOOM
     if (reduced) {
       phiRef.current = target.phi
       thetaRef.current = target.theta
       flightRef.current = null
-      zoomRef.current = MAX_ZOOM
       return
     }
     flightRef.current = {
@@ -193,7 +149,7 @@ export default function SpillGlobe({
       dt: target.theta - thetaRef.current,
       start: performance.now(),
     }
-  }, [selectedId, placed, reduced, homeCenter])
+  }, [selectedId, placed, reduced])
 
   const markers = useMemo(
     () =>
@@ -305,20 +261,6 @@ export default function SpillGlobe({
       zoomRef.current += (zoomTargetRef.current - zoomRef.current) * (reduced ? 1 : 0.16)
       const nowZoomedIn = zoomRef.current > ZOOM_LINK_THRESHOLD
       setZoomedIn((prev) => (prev === nowZoomedIn ? prev : nowZoomedIn))
-
-      // The auto zoom-in on a selection ramps toward MAX_ZOOM but only ever asymptotically
-      // approaches it (it's a chase, not a snap) — "close enough" is the arrival signal, fired
-      // once per selection so a click never re-triggers the hand-off it already made.
-      const { selectedId: liveSelectedId, onZoomedIn: liveOnZoomedIn } = liveRef.current
-      if (
-        liveSelectedId &&
-        liveOnZoomedIn &&
-        firedZoomForRef.current !== liveSelectedId &&
-        MAX_ZOOM - zoomRef.current < 0.08
-      ) {
-        firedZoomForRef.current = liveSelectedId
-        liveOnZoomedIn(liveSelectedId)
-      }
 
       globe.update({ phi: phiRef.current, theta: thetaRef.current, scale: zoomRef.current })
 
@@ -537,10 +479,8 @@ export default function SpillGlobe({
         })}
       </div>
 
-      {/* Past this zoom, the sphere has no more real detail to show, and the globe is already
-          ramping to MAX_ZOOM to auto-hand-off to the investigation page (see onZoomedIn in the
-          render loop). This link is the early-exit: never make the officer sit through an
-          animation they don't need to. */}
+      {/* Past this zoom, the sphere has no more real detail to show — bridge to the actual
+          coordinate-accurate view instead of a globe that just looks blurrier. */}
       {zoomedIn && selectedInc && (
         <motion.div
           initial={{ opacity: 0, y: 6 }}
@@ -552,7 +492,7 @@ export default function SpillGlobe({
             to={`/app/incidents/${selectedInc.id}`}
             className="flex items-center gap-1.5 rounded-full bg-ink px-3 py-1.5 font-mono text-[11px] font-medium text-bg shadow-lg hover:opacity-90"
           >
-            <ArrowUpRight className="size-3.5" /> Opening investigation for {selectedInc.code}…
+            <ArrowUpRight className="size-3.5" /> Open exact coordinates for {selectedInc.code}
           </Link>
         </motion.div>
       )}
@@ -574,16 +514,6 @@ export default function SpillGlobe({
         <ZoomIn className="size-3" aria-hidden />
         {placed.length} slick{placed.length === 1 ? '' : 's'} · drag to spin · scroll/pinch to zoom
       </div>
-
-      {/* Visible confirmation that the hold-on-sector behaviour above is active, and which
-          sector — an officer restricted to one zone should never have to guess why the globe
-          stopped spinning. */}
-      {homeCenter && homeLabel && (
-        <div className="absolute left-2 top-2 flex items-center gap-1.5 rounded border border-line bg-surface/85 px-2 py-1 font-mono text-[10px] text-ink-2 backdrop-blur">
-          <Anchor className="size-3 text-accent" aria-hidden />
-          Sector: {homeLabel}
-        </div>
-      )}
     </div>
   )
 }
