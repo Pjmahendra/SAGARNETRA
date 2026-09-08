@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowRight, Crosshair, MapPin } from 'lucide-react'
@@ -8,18 +8,55 @@ import { api } from '../lib/api'
 import { fmtAgo, fmtKm2, fmtUtc } from '../lib/format'
 import { Empty, EngineBadge, KpiTile, PageHeader, Panel, Spinner, StatusChip, TierChip } from '../components/Primitives'
 import SpillGlobe from '../components/SpillGlobe'
+import RealMap, { type MapPoint } from '../components/RealMap'
+import type { PlanTrack, PlanVessel } from '../components/PlanView'
+import type { LonLat } from '../lib/types'
 import { useUi } from '../store/ui'
+
+const ZOOM_MS = 1100 // globe flies to the slick, then the map dives in
+
+/** Course over ground from a track's last segment, so hulls point the way they were steaming. */
+function lastCog(track: { p: LonLat }[]): number {
+  if (track.length < 2) return 0
+  const a = track[track.length - 2].p
+  const b = track[track.length - 1].p
+  return (Math.atan2(b[0] - a[0], b[1] - a[1]) * 180) / Math.PI
+}
 
 export default function Dashboard() {
   const overview = useQuery({ queryKey: ['overview'], queryFn: api.overview })
   const incidents = useQuery({ queryKey: ['incidents'], queryFn: api.incidents })
   const o = overview.data
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [phase, setPhase] = useState<'globe' | 'map'>('globe')
+  const zoomTimer = useRef<number | null>(null)
+  const navigate = useNavigate()
   const { zoneId, setZone } = useUi()
 
   const all = incidents.data ?? []
   const selected = all.find((i) => i.id === selectedId) ?? null
   const zoneOf = (name: string) => o?.zones.find((z) => z.name === name) ?? null
+
+  // On select the globe flies to the slick, then the panel dives into the real map with the incident's
+  // slick, drift ellipses and AIS tracks, plus its sector's pending detections. Same behaviour as the old
+  // command view, folded into the dashboard's existing panel — the resting look is unchanged.
+  const detailQ = useQuery({ queryKey: ['incident', selectedId], queryFn: () => api.incident(selectedId as string), enabled: !!selectedId })
+  const sectorQ = useQuery({ queryKey: ['sector', selected?.zone_id], queryFn: () => api.sector(selected!.zone_id as string), enabled: !!selected?.zone_id })
+  const det = detailQ.data
+  const ranking = det?.ranking ?? []
+  const vessels: PlanVessel[] = ranking.filter((r) => r.track.length > 0).map((r, idx) => ({
+    mmsi: r.mmsi, name: r.name, type: r.type_group, position: r.track[r.track.length - 1].p,
+    cog: lastCog(r.track), selected: idx === 0, dark: r.behaviour === 'dark',
+  }))
+  const tracks: PlanTrack[] = ranking.filter((r) => r.track.length > 1).map((r) => ({ points: r.track }))
+  const mapPoints: MapPoint[] = (sectorQ.data?.detections ?? [])
+    .filter((d) => Array.isArray(d.centroid) && d.centroid.length === 2)
+    .map((d) => ({
+      id: d.id, position: d.centroid as LonLat, tone: d.has_spill ? 'spill' : 'clean',
+      label: d.has_spill ? 'Possible slick' : 'Clean tile',
+      onClick: () => navigate(d.sample_id ? `/app/detect?sample=${d.sample_id}` : '/app/detect'),
+    }))
+  const showMap = phase === 'map' && !!selected
 
   // Selecting a slick (globe or list) drives the header's global Zone selector, so the
   // console-wide zone context always matches what is on screen here. The reverse direction
@@ -28,16 +65,21 @@ export default function Dashboard() {
   // from immediately undoing the forward sync's own setZone call.
   const skipNextZoneSync = useRef(false)
   const selectIncident = (id: string | null) => {
+    if (zoomTimer.current) { clearTimeout(zoomTimer.current); zoomTimer.current = null }
     setSelectedId(id)
+    setPhase('globe')
+    if (id) zoomTimer.current = window.setTimeout(() => setPhase('map'), ZOOM_MS)
     const inc = id ? all.find((i) => i.id === id) : null
     const z = inc ? zoneOf(inc.zone) : null
     if (z) { skipNextZoneSync.current = true; setZone(z.id) }
   }
 
+  useEffect(() => () => { if (zoomTimer.current) clearTimeout(zoomTimer.current) }, [])
+
   useEffect(() => {
     if (skipNextZoneSync.current) { skipNextZoneSync.current = false; return }
     if (!selected) return
-    if (zoneOf(selected.zone)?.id !== zoneId) setSelectedId(null)
+    if (zoneOf(selected.zone)?.id !== zoneId) { setSelectedId(null); setPhase('globe') }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoneId])
 
@@ -69,11 +111,24 @@ export default function Dashboard() {
             >
               <div className="grid lg:grid-cols-[1fr_1fr]">
                 <div className="p-4">
-                  {!incidents.data ? (
-                    <div className="grid aspect-square place-items-center"><Spinner /></div>
-                  ) : (
-                    <SpillGlobe incidents={all} selectedId={selectedId} onSelect={selectIncident} />
-                  )}
+                  <div className="relative aspect-square w-full overflow-hidden rounded-md">
+                    <AnimatePresence>
+                      {showMap ? (
+                        <motion.div key="map" className="absolute inset-0" initial={{ opacity: 0, scale: 1.08 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.55, ease: 'easeOut' }}>
+                          {!det ? <div className="grid size-full place-items-center"><Spinner label="Loading map" /></div> : (
+                            <RealMap className="size-full" polygon={det.polygon} zones={det.origin_zones} vessels={vessels} tracks={tracks} points={mapPoints}
+                              onSelect={() => selected && navigate(`/app/incidents/${selected.id}`)} />
+                          )}
+                        </motion.div>
+                      ) : (
+                        <motion.div key="globe" className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 1.1 }} transition={{ duration: 0.5 }}>
+                          {!incidents.data ? <div className="grid size-full place-items-center"><Spinner /></div> : (
+                            <SpillGlobe incidents={all} selectedId={selectedId} onSelect={selectIncident} />
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
 
                 <div className="border-t border-line p-5 lg:border-l lg:border-t-0">
