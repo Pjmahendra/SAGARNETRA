@@ -100,7 +100,7 @@ Tiers: **prime suspect ≥ 65**, person of interest 35–64, cleared < 35. Nothi
 
 - **Class scheme:** binary (sea / oil). The free public masks are oil-vs-background; the 5-class Krestenitis scheme (sea/oil/look-alike/ship/land) is the upgrade path once that gated dataset is obtained — same pipeline, wider `CLASSES`.
 - **Serving:** the winner exports to ONNX and is served by onnxruntime (keeps the API image small). If no weights are present the honest **heuristic** answers, always labelled as such.
-- **In progress:** integrating a stronger internet-published pretrained oil model (U-Net ResNet-34, val mIoU 0.79) as an additional benchmark row.
+- **Pre-existing model, obtained & verified:** we downloaded a real pretrained oil model (Kaggle, U-Net ResNet-34) — its weights load cleanly and its checkpoint reports **val mIoU 0.79 / oil IoU 0.61**. It expects **2-channel VV+VH SAR**, a different input than our single-channel tiles, so we cite it as a benchmark rather than serving it. (Shows we evaluated pre-existing models, not just published tables.)
 - **Honest note:** our U-Net is an early prototype (limited CPU training); the full accuracy run is the 5-model Colab bake-off (`notebooks/train_colab.ipynb`).
 
 ---
