@@ -54,14 +54,17 @@ export default function IncidentMap({ d }: { d: IncidentDetail }) {
   const otherTracks = layers.tracks ? d.ranking.filter((r) => r.mmsi !== selectedMmsi).map((r) => ({ points: r.track })) : []
 
   return (
-    <div className="relative min-h-[70vh] overflow-hidden rounded-lg border border-line bg-bg">
+    // An explicit height, not a min-height: Leaflet sizes itself as 100% of its parent, and a
+    // percentage against a parent that only has min-height resolves to zero — an invisible map.
+    <div className="relative h-[calc(100dvh-236px)] min-h-[520px] overflow-hidden rounded-lg border border-line bg-bg">
       {mode === 'plan' ? (
-        <PlanView className="absolute inset-0 size-full" {...common} />
+        <PlanView className="size-full" {...common} />
       ) : (
-        <RealMap className="absolute inset-0 size-full" {...common} tracks={otherTracks} />
+        <RealMap className="size-full" {...common} tracks={otherTracks} />
       )}
 
-      <div className="absolute left-4 top-4 z-[500] flex rounded-md border border-line bg-surface/90 p-1 text-xs backdrop-blur">
+      {/* left-16 clears Leaflet's own zoom buttons in the corner */}
+      <div className="absolute left-16 top-4 z-[500] flex rounded-md border border-line bg-surface/90 p-1 text-xs backdrop-blur">
         <button type="button" onClick={() => setMode('map')}
           className={cn('flex items-center gap-1.5 rounded px-2.5 py-1.5 font-medium', mode === 'map' ? 'bg-ink text-bg' : 'text-ink-2 hover:text-ink')}
           title="Real satellite imagery on true coordinates. Needs network access.">
@@ -74,7 +77,7 @@ export default function IncidentMap({ d }: { d: IncidentDetail }) {
         </button>
       </div>
 
-      <div className="absolute left-4 top-16 z-[500] w-56 rounded-md border border-line bg-surface/90 p-3 text-sm backdrop-blur">
+      <div className="absolute left-16 top-16 z-[500] w-56 rounded-md border border-line bg-surface/90 p-3 text-sm backdrop-blur">
         <div className="label-caps mb-1">Layers</div>
         {LAYERS.map((l) => (
           <label key={l.id} className="flex items-center gap-2 py-0.5 text-ink-2">
