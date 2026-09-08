@@ -1,9 +1,11 @@
-import { lazy, Suspense } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
+import { lazy, Suspense, useState } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router'
 import RequireAuth from './auth/RequireAuth'
 import RequireRole from './auth/RequireRole'
 import AppShell from './components/AppShell'
+import PageCurtain from './components/PageCurtain'
 import { Spinner } from './components/Primitives'
+import { useRouteTitle } from './lib/routeTitle'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
@@ -20,10 +22,38 @@ const Lazy = ({ children }: { children: React.ReactNode }) => (
   <Suspense fallback={<div className="p-6"><Spinner label="Loading" /></div>}>{children}</Suspense>
 )
 
-export default function App() {
+/**
+ * Every move between console pages runs the curtain.
+ *
+ * The router is rendered against `display`, a location deliberately held one step behind the real
+ * one. When the address changes the outgoing page stays on screen while the curtain closes over
+ * it; only once the screen is fully dark does `display` catch up, so the destination mounts
+ * unseen and is revealed already complete. That also means back and forward, a redirect and a
+ * plain `navigate()` all animate identically, with no page having to opt in.
+ *
+ * Only console-to-console moves animate. The landing page and login are outside it, and a change
+ * of search string or hash on the same page is not a page change at all.
+ */
+function AppRoutes() {
+  const location = useLocation()
+  const [display, setDisplay] = useState(location)
+  const [phase, setPhase] = useState<'idle' | 'cover' | 'reveal'>('idle')
+  const routeTitle = useRouteTitle()
+
+  // Adjusting state while rendering, rather than in an effect, so the pinned location and the
+  // curtain start in the same commit as the address change. An effect would paint one frame of
+  // the destination first, which is the flash this exists to prevent.
+  if (phase === 'idle' && location.pathname !== display.pathname) {
+    const inConsole = location.pathname.startsWith('/app') && display.pathname.startsWith('/app')
+    if (inConsole) setPhase('cover')
+    else setDisplay(location)
+  }
+
+  const title = routeTitle(phase === 'cover' ? location.pathname : display.pathname)
+
   return (
-    <BrowserRouter>
-      <Routes>
+    <>
+      <Routes location={display}>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route element={<RequireAuth />}>
@@ -42,6 +72,26 @@ export default function App() {
         <Route path="/app/*" element={<Navigate to="/app" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+
+      {phase !== 'idle' && (
+        <PageCurtain
+          mode={phase}
+          title={title}
+          // `location` here is the newest one: a second click mid-curtain re-renders us with the
+          // later destination, and the curtain always calls the callback it was last handed.
+          onDone={phase === 'cover'
+            ? () => { setDisplay(location); setPhase('reveal') }
+            : () => setPhase('idle')}
+        />
+      )}
+    </>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
     </BrowserRouter>
   )
 }

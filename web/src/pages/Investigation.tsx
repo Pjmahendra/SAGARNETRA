@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useLocation, useNavigate, useParams } from 'react-router'
+import { useParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { ClipboardCheck, FileDown, LayoutGrid, Map as MapIcon, MessageSquarePlus, RefreshCw, Ship } from 'lucide-react'
 import { api } from '../lib/api'
@@ -8,7 +8,6 @@ import { positionAt } from '../lib/geo'
 import { fmtCoord, fmtKm2, fmtUtc, TYPE_LABEL } from '../lib/format'
 import type { IncidentDetail } from '../lib/types'
 import { useUi } from '../store/ui'
-import CaseFileCurtain from '../components/CaseFileCurtain'
 import FeatureBars from '../components/FeatureBars'
 import IncidentMap from '../components/IncidentMap'
 import PlanView from '../components/PlanView'
@@ -24,18 +23,6 @@ function TaggedChip() {
 
 export default function Investigation() {
   const { id = '' } = useParams()
-  // Second half of the Dashboard → case-file transition. The Dashboard arrives here with the title
-  // in history state while its dark curtain still covers the screen; we render the same curtain on
-  // first paint (so this page never flashes) and lift it. Any other way in (nav, Incidents list,
-  // refresh, back button) carries no state and shows the page plainly.
-  const location = useLocation()
-  const navigate = useNavigate()
-  const [reveal, setReveal] = useState<string | null>(() => {
-    const s = location.state as { curtain?: unknown } | null
-    return typeof s?.curtain === 'string' ? s.curtain : null
-  })
-  const onRevealed = () => { setReveal(null); void navigate(location.pathname, { replace: true, state: null }) }
-  const curtain = reveal !== null && <CaseFileCurtain mode="reveal" title={reveal} onDone={onRevealed} />
   const q = useQuery({ queryKey: ['incident', id], queryFn: () => api.incident(id), enabled: !!id })
   const { selectedMmsi, selectMmsi } = useUi()
   // The full map (slick, drift ellipses, every ranked ship with its trajectory, replay) is a
@@ -61,7 +48,7 @@ export default function Investigation() {
     return { fromH: (t0 - start) / 3600_000, toH: (t0 - Math.max(...gaps)) / 3600_000 }
   }, [sel, d])
 
-  if (!d) return <div className="p-6"><Spinner label="Loading incident" />{curtain}</div>
+  if (!d) return <div className="p-6"><Spinner label="Loading incident" /></div>
   const t0 = new Date(d.detected_at).getTime()
   const tagged = new Set(
     d.events.filter((e) => (e.type === 'inspection' || e.type === 'psc_request') && e.mmsi).map((e) => e.mmsi as string),
@@ -71,7 +58,6 @@ export default function Investigation() {
 
   return (
     <div className="p-6">
-      {curtain}
       <PageHeader eyebrow={`${d.zone} · ${d.scene}`} title={d.code}
         description={`${fmtKm2(d.area_km2)} slick at ${fmtCoord(d.centroid)}, acquired ${fmtUtc(d.detected_at)}. ${d.ranking.length} vessels were inside the origin zones.`}
         actions={<>
