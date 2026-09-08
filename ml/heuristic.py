@@ -11,9 +11,11 @@ import numpy as np
 
 from . import OIL, SEA
 
-Z_GLOBAL = 2.5  # how many robust std-devs darker than the scene median
-Z_LOCAL = 1.5  # ... and darker than the wide local background
-MIN_AREA_FRAC = 0.003
+# Tuned for real (speckly) Sentinel-1 tiles: catch the large, smooth dark slick without demanding the strong local
+# contrast a small spot would show. Rougher than the U-Net by design — it's the classic baseline for comparison.
+Z_GLOBAL = 1.4  # robust std-devs darker than the scene median
+Z_LOCAL = 0.4  # ... and at least a little darker than the wide local background
+MIN_AREA_FRAC = 0.015  # keep large contiguous slicks, drop scattered speckle
 
 
 def _odd(n: int) -> int:
@@ -32,7 +34,7 @@ def segment(gray: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     z_local = (background - smooth) / mad
     dark = ((z_global > Z_GLOBAL) & (z_local > Z_LOCAL)).astype(np.uint8)
     dark = cv2.morphologyEx(dark, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
-    dark = cv2.morphologyEx(dark, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
+    dark = cv2.morphologyEx(dark, cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8))
 
     class_map = np.full((h, w), SEA, np.uint8)
     probs = np.zeros((2, h, w), np.float32)

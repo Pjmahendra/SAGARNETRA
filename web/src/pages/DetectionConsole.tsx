@@ -293,7 +293,7 @@ export default function DetectionConsole() {
                 </ul>
               </div>
             )}
-            {result.engine === 'heuristic' && <div className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">Model unavailable. Classic dark-spot heuristic answered; treat the polygon as a lead only.</div>}
+            {result.engine === 'heuristic' && <div className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">{model.data?.engine === 'unet' ? 'Classic dark-spot baseline — shown for comparison. Rougher than the U-Net; treat the polygon as a lead only.' : 'Model unavailable. Classic dark-spot heuristic answered; treat the polygon as a lead only.'}</div>}
 
             {hasSpill && (
               <div className="border-t border-line pt-3">
