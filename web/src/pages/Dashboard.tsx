@@ -33,7 +33,6 @@ const SECTIONS = [
   { id: 'incidents', label: 'Open incidents' },
   { id: 'zones', label: 'Watch zones' },
   { id: 'trend', label: 'Trend' },
-  { id: 'activity', label: 'Recent activity' },
 ] as const
 
 export default function Dashboard() {
@@ -381,7 +380,7 @@ export default function Dashboard() {
             </Panel>
           </div>
 
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+          <div className="mt-4">
             <Panel id="trend" ref={setSectionRef('trend')} title="Slicks detected, last 14 days">
               <div className="h-44">
                 <ResponsiveContainer>
@@ -399,16 +398,6 @@ export default function Dashboard() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-            </Panel>
-            <Panel id="activity" ref={setSectionRef('activity')} title="Recent activity" bodyClassName="p-0">
-              <ul className="divide-y divide-line">
-                {o.recent.map((a) => (
-                  <li key={a.id} className="flex items-baseline gap-3 px-4 py-2.5 text-sm">
-                    <span className="w-16 shrink-0 font-mono text-xs text-ink-3">{fmtAgo(a.at)}</span>
-                    <span><span className="font-semibold">{a.who}</span> <span className="text-ink-2">{a.what}</span></span>
-                  </li>
-                ))}
-              </ul>
             </Panel>
           </div>
         </>
