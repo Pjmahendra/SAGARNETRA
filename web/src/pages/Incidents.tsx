@@ -7,6 +7,7 @@ import { useAuth } from '../auth/store'
 import { cn } from '../lib/cn'
 import { fmtKm2, fmtUtc } from '../lib/format'
 import { EngineBadge, Empty, KpiTile, PageHeader, Spinner, StatusChip, Table, TierChip } from '../components/Primitives'
+import IncidentDialog from '../components/IncidentDialog'
 import type { Incident, IncidentStatus } from '../lib/types'
 
 type TabKey = 'pending' | 'inspection' | 'closed' | 'all'
@@ -33,6 +34,7 @@ export default function Incidents() {
   const canScope = myZoneIds.length > 0
   const [tab, setTab] = useState<TabKey>('pending')
   const [myZones, setMyZones] = useState(false)
+  const [dialogId, setDialogId] = useState<string | null>(null)
 
   const scoped = useMemo(() => {
     const all = q.data ?? []
@@ -94,8 +96,9 @@ export default function Incidents() {
           <thead><tr><th>Code</th><th>Status</th><th>Zone</th><th>Detected (UTC)</th><th className="text-right">Area</th><th className="text-right">Conf.</th><th>Engine</th><th>Top suspect</th><th>Assigned</th></tr></thead>
           <tbody>
             {rows.map((i) => (
-              <tr key={i.id} className={cn(i.top_tier === 'prime' && i.status !== 'closed' && 'bg-crit/[0.03]')}>
-                <td><Link to={`/app/incidents/${i.id}`} className="font-mono text-sea hover:underline">{i.code}</Link>{i.is_demo && <span className="ml-2 font-mono text-[10px] uppercase text-ink-3">demo</span>}</td>
+              <tr key={i.id} onClick={() => setDialogId(i.id)}
+                className={cn('cursor-pointer', i.top_tier === 'prime' && i.status !== 'closed' && 'bg-crit/[0.03]')}>
+                <td><Link to={`/app/incidents/${i.id}`} onClick={(e) => e.stopPropagation()} className="font-mono text-sea hover:underline">{i.code}</Link>{i.is_demo && <span className="ml-2 font-mono text-[10px] uppercase text-ink-3">demo</span>}</td>
                 <td><StatusChip status={i.status} /></td>
                 <td>{i.zone}</td>
                 <td className="font-mono text-xs">{fmtUtc(i.detected_at)}</td>
@@ -109,6 +112,8 @@ export default function Incidents() {
           </tbody>
         </Table>
       )}
+
+      <IncidentDialog incidentId={dialogId} onClose={() => setDialogId(null)} />
     </div>
   )
 }

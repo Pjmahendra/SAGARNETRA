@@ -9,19 +9,10 @@ import { fmtAgo, fmtKm2, fmtUtc } from '../lib/format'
 import { Empty, EngineBadge, KpiTile, PageHeader, Panel, Spinner, StatusChip, TierChip } from '../components/Primitives'
 import SpillGlobe from '../components/SpillGlobe'
 import RealMap, { type MapPoint } from '../components/RealMap'
-import type { PlanTrack, PlanVessel } from '../components/PlanView'
 import type { LonLat } from '../lib/types'
 import { useUi } from '../store/ui'
 
 const ZOOM_MS = 1100 // globe flies to the slick, then the map dives in
-
-/** Course over ground from a track's last segment, so hulls point the way they were steaming. */
-function lastCog(track: { p: LonLat }[]): number {
-  if (track.length < 2) return 0
-  const a = track[track.length - 2].p
-  const b = track[track.length - 1].p
-  return (Math.atan2(b[0] - a[0], b[1] - a[1]) * 180) / Math.PI
-}
 
 export default function Dashboard() {
   const overview = useQuery({ queryKey: ['overview'], queryFn: api.overview })
@@ -43,12 +34,6 @@ export default function Dashboard() {
   const detailQ = useQuery({ queryKey: ['incident', selectedId], queryFn: () => api.incident(selectedId as string), enabled: !!selectedId })
   const sectorQ = useQuery({ queryKey: ['sector', selected?.zone_id], queryFn: () => api.sector(selected!.zone_id as string), enabled: !!selected?.zone_id })
   const det = detailQ.data
-  const ranking = det?.ranking ?? []
-  const vessels: PlanVessel[] = ranking.filter((r) => r.track.length > 0).map((r, idx) => ({
-    mmsi: r.mmsi, name: r.name, type: r.type_group, position: r.track[r.track.length - 1].p,
-    cog: lastCog(r.track), selected: idx === 0, dark: r.behaviour === 'dark',
-  }))
-  const tracks: PlanTrack[] = ranking.filter((r) => r.track.length > 1).map((r) => ({ points: r.track }))
   const mapPoints: MapPoint[] = (sectorQ.data?.detections ?? [])
     .filter((d) => Array.isArray(d.centroid) && d.centroid.length === 2)
     .map((d) => ({
@@ -116,8 +101,8 @@ export default function Dashboard() {
                       {showMap ? (
                         <motion.div key="map" className="absolute inset-0" initial={{ opacity: 0, scale: 1.08 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.55, ease: 'easeOut' }}>
                           {!det ? <div className="grid size-full place-items-center"><Spinner label="Loading map" /></div> : (
-                            <RealMap className="size-full" polygon={det.polygon} zones={det.origin_zones} vessels={vessels} tracks={tracks} points={mapPoints}
-                              onSelect={() => selected && navigate(`/app/incidents/${selected.id}`)} />
+                            // Just the oil-spill mark in the region — no ships/AIS/drift here. Click it to enquire and test.
+                            <RealMap className="size-full" polygon={det.polygon} points={mapPoints} />
                           )}
                         </motion.div>
                       ) : (
