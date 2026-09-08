@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { ClipboardCheck, FileDown, LayoutGrid, Map as MapIcon, MessageSquarePlus, RefreshCw, Ship } from 'lucide-react'
+import { CheckCircle2, ClipboardCheck, FileDown, LayoutGrid, Map as MapIcon, MessageSquarePlus, RefreshCw, Ship } from 'lucide-react'
 import { api } from '../lib/api'
 import { positionAt } from '../lib/geo'
 import { fmtCoord, fmtKm2, fmtUtc, TYPE_LABEL } from '../lib/format'
@@ -44,6 +44,23 @@ export default function Investigation() {
       window.open(`/app/reports/${r.id}/print`, '_blank', 'noopener')
     },
   })
+  // Closing the case is the end of the workflow: set status to closed AND freeze the evidence pack in one step,
+  // then open the printable report. A closed case with no report on file would be a gap in the chain of custody.
+  const closeCase = useMutation({
+    mutationFn: async () => {
+      await api.addIncidentEvent(id, { type: 'status', status: 'closed', text: 'Investigation closed; evidence pack generated.' })
+      return api.createReport(id)
+    },
+    onSuccess: (r) => {
+      void qc.invalidateQueries({ queryKey: ['incident', id] })
+      void qc.invalidateQueries({ queryKey: ['reports'] })
+      void qc.invalidateQueries({ queryKey: ['incidents'] })
+      window.open(`/app/reports/${r.id}/print`, '_blank', 'noopener')
+    },
+  })
+  const onClose = () => {
+    if (window.confirm('Close this investigation? The case is marked closed and its evidence-pack report is generated.')) closeCase.mutate()
+  }
   const onNote = () => { const text = window.prompt('Note for the case file'); if (text?.trim()) addEvent.mutate({ type: 'note', text: text.trim() }) }
   const onInspect = () => { if (!sel) return; if (window.confirm(`Mark ${sel.name} for inspection? Status becomes "inspection requested".`)) addEvent.mutate({ type: 'inspection', mmsi: sel.mmsi, text: `${sel.name} (MMSI ${sel.mmsi}) marked for inspection, score ${sel.score}/100` }) }
   useEffect(() => { if (d && !d.ranking.some((r) => r.mmsi === selectedMmsi)) selectMmsi(d.ranking[0]?.mmsi ?? null) }, [d, selectedMmsi, selectMmsi])
@@ -79,9 +96,13 @@ export default function Investigation() {
           <Button variant="ghost" onClick={onNote} disabled={addEvent.isPending}><MessageSquarePlus className="size-4" />Add note</Button>
           <Button variant="ghost" onClick={onInspect} disabled={addEvent.isPending || !sel || selTagged || d.status === 'closed'} title={selTagged ? 'This vessel is already tagged for inspection' : undefined}><ClipboardCheck className="size-4" />{selTagged ? 'Tagged' : 'Mark for inspection'}</Button>
           <Button variant="ghost" onClick={() => rerank.mutate()} disabled={rerank.isPending} title="Recompute drift and ranking with the latest AIS data"><RefreshCw className={`size-4 ${rerank.isPending ? 'animate-spin' : ''}`} />Re-rank</Button>
-          <Button onClick={() => exportReport.mutate()} disabled={exportReport.isPending}
+          <Button variant="ghost" onClick={() => exportReport.mutate()} disabled={exportReport.isPending}
             title="Freeze the current numbers as a numbered revision and open the printable evidence pack">
             <FileDown className="size-4" />{exportReport.isPending ? 'Preparing…' : 'Export PDF'}
+          </Button>
+          <Button onClick={onClose} disabled={closeCase.isPending || d.status === 'closed'}
+            title={d.status === 'closed' ? 'This case is already closed' : 'Close the investigation and generate its evidence pack'}>
+            <CheckCircle2 className="size-4" />{d.status === 'closed' ? 'Closed' : closeCase.isPending ? 'Closing…' : 'Close & report'}
           </Button>
         </>} />
 
