@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/store'
 import { ApiError, MOCK_MODE } from '../lib/api'
 import { Button, ErrorNote } from '../components/Primitives'
+import SeaBackdrop from '../components/SeaBackdrop'
 
 export default function Login() {
   const { user, login } = useAuth()
@@ -30,19 +31,30 @@ export default function Login() {
   }
 
   return (
-    <div className="grid min-h-dvh md:grid-cols-[1.15fr_1fr]">
-      <aside className="relative hidden overflow-hidden bg-[#0a1220] md:block">
-        <div className="absolute inset-0 opacity-90" style={{ background: 'radial-gradient(ellipse at 62% 48%, #05080e 0 9%, transparent 22%), radial-gradient(ellipse at 40% 60%, #101a2c 0 30%, transparent 55%), repeating-linear-gradient(135deg, #0c1424 0 2px, #0e1729 2px 4px)' }} />
-        <div className="absolute inset-0 mix-blend-soft-light" style={{ backgroundImage: 'url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%27160%27 height=%27160%27><filter id=%27n%27><feTurbulence type=%27fractalNoise%27 baseFrequency=%270.9%27 numOctaves=%272%27/></filter><rect width=%27160%27 height=%27160%27 filter=%27url(%23n)%27 opacity=%270.55%27/></svg>")' }} />
-        <div className="absolute left-6 top-6 font-mono text-[11px] uppercase tracking-wider text-ink-3">Sentinel-1A · IW GRD · VV · 2026-09-06 01:12Z</div>
+    <div className="relative min-h-dvh overflow-hidden">
+      {/* Moving water behind the whole page. Fixed so it never scrolls on a short window. */}
+      <SeaBackdrop className="pointer-events-none absolute inset-0" />
+      {/* Film grain, carried over from the old panel: it ties the photographic backdrop to the
+          console's printed-instrument look instead of leaving it glossy. */}
+      <div className="pointer-events-none absolute inset-0 opacity-40 mix-blend-soft-light" style={{ backgroundImage: 'url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%27160%27 height=%27160%27><filter id=%27n%27><feTurbulence type=%27fractalNoise%27 baseFrequency=%270.9%27 numOctaves=%272%27/></filter><rect width=%27160%27 height=%27160%27 filter=%27url(%23n)%27 opacity=%270.55%27/></svg>")' }} />
+
+      {/* One scrim across the whole page, not per column: a gradient that stops at the grid
+          boundary leaves a hard vertical seam down the middle of the sea. */}
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(8,14,20,0.8)_0%,rgba(8,14,20,0.3)_34%,transparent_58%)]" />
+
+      <div className="relative grid min-h-dvh md:grid-cols-[1.15fr_1fr]">
+      <aside className="relative hidden md:block">
+        <div className="absolute left-6 top-6 font-mono text-[11px] uppercase tracking-wider text-white/70 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">Sentinel-1A · IW GRD · VV · 2026-09-06 01:12Z</div>
         <div className="absolute bottom-6 left-6 max-w-[40ch]">
-          <div className="font-display text-3xl font-semibold leading-tight">Oil reads dark on radar. So do calm water and algae.</div>
-          <p className="mt-2 text-sm text-ink-2">The model's job is telling them apart. The officer's job is deciding who to board. This console is where the two meet.</p>
+          <div className="font-display text-3xl font-semibold leading-tight text-white [text-shadow:0_2px_12px_rgba(0,0,0,0.55)]">Oil reads dark on radar. So do calm water and algae.</div>
+          <p className="mt-2 text-sm text-white/80 [text-shadow:0_1px_6px_rgba(0,0,0,0.6)]">The model's job is telling them apart. The officer's job is deciding who to board. This console is where the two meet.</p>
         </div>
       </aside>
 
       <main className="grid place-items-center px-6 py-12">
-        <form onSubmit={submit} className="w-full max-w-sm" noValidate>
+        {/* The form sits on its own panel rather than straight on the water: sign-in has to stay
+            plainly legible, and every input keeps the same contrast it had before. */}
+        <form onSubmit={submit} className="w-full max-w-sm rounded-xl border border-white/20 bg-bg/92 p-7 shadow-[0_24px_70px_-20px_rgba(6,12,20,0.65)] backdrop-blur-md" noValidate>
           <div className="mb-8 flex items-center gap-2.5">
             <div className="grid size-9 place-items-center rounded bg-ink font-pixel text-base text-bg">S</div>
             <div>
@@ -77,6 +89,7 @@ export default function Login() {
           </div>
         </form>
       </main>
+      </div>
     </div>
   )
 }
