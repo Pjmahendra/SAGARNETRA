@@ -10,7 +10,7 @@ import { cn } from '../lib/cn'
 import { Empty, EngineBadge, KpiTile, PageHeader, Panel, Spinner, StatusChip, TierChip } from '../components/Primitives'
 import SpillGlobe from '../components/SpillGlobe'
 import RealMap, { type MapPoint } from '../components/RealMap'
-import { useCurtainNavigate } from '../store/curtain'
+import CaseFileCurtain from '../components/CaseFileCurtain'
 import type { Incident, LonLat } from '../lib/types'
 import { useUi } from '../store/ui'
 
@@ -44,7 +44,14 @@ export default function Dashboard() {
   const [phase, setPhase] = useState<'globe' | 'map'>('globe')
   const zoomTimer = useRef<number | null>(null)
   const navigate = useNavigate()
-  const goToInvestigation = useCurtainNavigate()
+  // The one page transition in the console: "Open investigation" wipes a dark curtain over this page,
+  // shows the case-file title, then hands off to the Investigation page which lifts it. Owned here and
+  // there only — no app-wide transition system. Preloading the chunk keeps the curtain continuous.
+  const [curtain, setCurtain] = useState<{ to: string; title: string } | null>(null)
+  const openInvestigation = (i: Incident) => {
+    void import('./Investigation')
+    setCurtain({ to: `/app/incidents/${i.id}`, title: i.code })
+  }
   const { zoneId, setZone } = useUi()
 
   const all = incidents.data ?? []
@@ -264,7 +271,7 @@ export default function Dashboard() {
                         ) : (
                           <button
                             type="button"
-                            onClick={() => goToInvestigation(`/app/incidents/${selected.id}`)}
+                            onClick={() => openInvestigation(selected)}
                             className="mt-4 inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-deep"
                           >
                             Open investigation <ArrowRight className="size-4" />
@@ -404,6 +411,14 @@ export default function Dashboard() {
             </Panel>
           </div>
         </>
+      )}
+
+      {curtain && (
+        <CaseFileCurtain
+          mode="cover"
+          title={curtain.title}
+          onDone={() => void navigate(curtain.to, { state: { curtain: curtain.title } })}
+        />
       )}
     </div>
   )

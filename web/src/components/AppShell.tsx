@@ -5,7 +5,6 @@ import type { LucideIcon } from 'lucide-react'
 import { hasRole, useAuth } from '../auth/store'
 import { api, MOCK_MODE } from '../lib/api'
 import { cn } from '../lib/cn'
-import PageCurtain from './PageCurtain'
 import { useUi } from '../store/ui'
 
 const NAV: { to: string; label: string; end?: boolean; Icon?: LucideIcon }[] = [
@@ -120,8 +119,6 @@ export default function AppShell() {
       <main className="min-h-0 overflow-auto">
         <Outlet />
       </main>
-
-      <PageCurtain />
     </div>
   )
 }
