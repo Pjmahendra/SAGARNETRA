@@ -1,13 +1,15 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useParams } from 'react-router'
-import { ClipboardCheck, FileDown, MessageSquarePlus, RefreshCw, Ship } from 'lucide-react'
+import { useParams } from 'react-router'
+import { AnimatePresence, motion } from 'motion/react'
+import { ClipboardCheck, FileDown, LayoutGrid, Map as MapIcon, MessageSquarePlus, RefreshCw, Ship } from 'lucide-react'
 import { api } from '../lib/api'
 import { positionAt } from '../lib/geo'
 import { fmtCoord, fmtKm2, fmtUtc, TYPE_LABEL } from '../lib/format'
 import type { IncidentDetail } from '../lib/types'
 import { useUi } from '../store/ui'
 import FeatureBars from '../components/FeatureBars'
+import IncidentMap from '../components/IncidentMap'
 import PlanView from '../components/PlanView'
 import { Button, Empty, EngineBadge, PageHeader, Panel, Spinner, StatusChip, TierChip } from '../components/Primitives'
 
@@ -23,6 +25,9 @@ export default function Investigation() {
   const { id = '' } = useParams()
   const q = useQuery({ queryKey: ['incident', id], queryFn: () => api.incident(id), enabled: !!id })
   const { selectedMmsi, selectMmsi } = useUi()
+  // The full map (slick, drift ellipses, every ranked ship with its trajectory, replay) is a
+  // mode of this case file, not a page of its own -- it expands in place of the panels below.
+  const [mapOpen, setMapOpen] = useState(false)
   const qc = useQueryClient()
   const d = q.data
   const refresh = (doc: IncidentDetail) => qc.setQueryData(['incident', id], doc)
@@ -57,13 +62,22 @@ export default function Investigation() {
         description={`${fmtKm2(d.area_km2)} slick at ${fmtCoord(d.centroid)}, acquired ${fmtUtc(d.detected_at)}. ${d.ranking.length} vessels were inside the origin zones.`}
         actions={<>
           <StatusChip status={d.status} />
+          <Button onClick={() => setMapOpen((v) => !v)} title={mapOpen ? 'Back to the evidence panels' : 'Slick, drift zones, every ranked vessel and its track, on real satellite imagery'}>
+            {mapOpen ? <><LayoutGrid className="size-4" />Case file</> : <><MapIcon className="size-4" />Open the map</>}
+          </Button>
           <Button variant="ghost" onClick={onNote} disabled={addEvent.isPending}><MessageSquarePlus className="size-4" />Add note</Button>
           <Button variant="ghost" onClick={onInspect} disabled={addEvent.isPending || !sel || selTagged || d.status === 'closed'} title={selTagged ? 'This vessel is already tagged for inspection' : undefined}><ClipboardCheck className="size-4" />{selTagged ? 'Tagged' : 'Mark for inspection'}</Button>
           <Button variant="ghost" onClick={() => rerank.mutate()} disabled={rerank.isPending} title="Recompute drift and ranking with the latest AIS data"><RefreshCw className={`size-4 ${rerank.isPending ? 'animate-spin' : ''}`} />Re-rank</Button>
           <Button disabled title="PDF export arrives with the report page"><FileDown className="size-4" />Export PDF</Button>
         </>} />
 
-      <div className="grid gap-4 xl:grid-cols-[300px_1fr_360px]">
+      <AnimatePresence mode="wait" initial={false}>
+      {mapOpen ? (
+        <motion.div key="map" initial={{ opacity: 0, scale: 0.985 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.985 }} transition={{ duration: 0.28, ease: 'easeOut' }}>
+          <IncidentMap d={d} />
+        </motion.div>
+      ) : (
+      <motion.div key="panels" className="grid gap-4 xl:grid-cols-[300px_1fr_360px]" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.22, ease: 'easeOut' }}>
         {/* evidence */}
         <div className="space-y-4">
           <Panel title="Slick" bodyClassName="p-0">
@@ -173,11 +187,13 @@ export default function Investigation() {
                   {(() => { const at = positionAt(sel.track, t0 - 12 * 3600_000); return at ? <p className="mt-1 font-mono text-[11px] text-ink-3">at t−12h: {fmtCoord(at.p)}</p> : null })()}
                 </div>
               </Panel>
-              <Link to="/app/map" className="block text-center text-xs text-sea hover:underline">Replay on the map</Link>
+              <button type="button" onClick={() => setMapOpen(true)} className="block w-full text-center text-xs text-sea hover:underline">Replay on the map</button>
             </>
           ) : <Empty title="Select a vessel" />}
         </div>
-      </div>
+      </motion.div>
+      )}
+      </AnimatePresence>
     </div>
   )
 }

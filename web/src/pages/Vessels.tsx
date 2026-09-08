@@ -1,17 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router'
 import { Search } from 'lucide-react'
 import { api } from '../lib/api'
 import { fmtAgo, fmtCoord, TYPE_LABEL } from '../lib/format'
-import { useUi } from '../store/ui'
 import { PageHeader, Spinner, Table } from '../components/Primitives'
 
 export default function Vessels() {
   const q = useQuery({ queryKey: ['vessels', 'live'], queryFn: api.vesselsLive, refetchInterval: 30_000 })
   const [search, setSearch] = useState('')
   const [type, setType] = useState('all')
-  const selectMmsi = useUi((s) => s.selectMmsi)
   const rows = useMemo(() => (q.data ?? []).filter((v) => (type === 'all' || v.type_group === type) && (v.name.toLowerCase().includes(search.toLowerCase()) || v.mmsi.includes(search))), [q.data, search, type])
 
   return (
@@ -31,7 +28,7 @@ export default function Vessels() {
           <tbody>
             {rows.map((v) => (
               <tr key={v.mmsi}>
-                <td><Link to="/app/map" onClick={() => selectMmsi(v.mmsi)} className="font-semibold text-sea hover:underline">{v.name}</Link></td>
+                <td className="font-semibold">{v.name}</td>
                 <td className="font-mono text-xs">{v.mmsi}</td>
                 <td className="font-mono text-xs text-ink-2">{v.imo ?? '—'}</td>
                 <td>{TYPE_LABEL[v.type_group]}</td>

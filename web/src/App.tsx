@@ -10,7 +10,6 @@ import NotFound from './pages/NotFound'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const DetectionConsole = lazy(() => import('./pages/DetectionConsole'))
-const LiveMap = lazy(() => import('./pages/LiveMap'))
 const Incidents = lazy(() => import('./pages/Incidents'))
 const Investigation = lazy(() => import('./pages/Investigation'))
 const Vessels = lazy(() => import('./pages/Vessels'))
@@ -31,7 +30,6 @@ export default function App() {
           <Route path="/app" element={<AppShell />}>
             <Route index element={<Lazy><Dashboard /></Lazy>} />
             <Route path="detect" element={<Lazy><DetectionConsole /></Lazy>} />
-            <Route path="map" element={<Lazy><LiveMap /></Lazy>} />
             <Route path="incidents" element={<Lazy><Incidents /></Lazy>} />
             <Route path="incidents/:id" element={<Lazy><Investigation /></Lazy>} />
             <Route path="vessels" element={<Lazy><Vessels /></Lazy>} />
