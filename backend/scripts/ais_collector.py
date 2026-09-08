@@ -130,6 +130,17 @@ def _length_m(dim: Any) -> int | None:
     return None
 
 
+def parse_bbox(s: str) -> list[list[float]]:
+    """`south,west,north,east` in degrees -> the [[lat, lon], [lat, lon]] pair AISStream wants."""
+    try:
+        south, west, north, east = (float(x) for x in s.split(","))
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected south,west,north,east — got {s!r}") from None
+    if not (-90 <= south < north <= 90 and -180 <= west < east <= 180):
+        raise argparse.ArgumentTypeError(f"out of range or inverted: {s!r}")
+    return [[south, west], [north, east]]
+
+
 async def zone_boxes(db: Any) -> list[list[list[float]]]:
     """AISStream wants [[[south, west], [north, east]], ...] — latitude first, unlike GeoJSON."""
     boxes: list[list[list[float]]] = []
@@ -256,7 +267,7 @@ class Collector:
         )
 
 
-async def run(dry_run: bool) -> None:
+async def run(dry_run: bool, seconds: float = 0.0, bboxes: list | None = None) -> None:
     settings = get_settings()
     key = settings.aisstream_api_key
     if not key:
@@ -267,7 +278,11 @@ async def run(dry_run: bool) -> None:
 
     client, db = await connect(settings)
     await ensure_indexes(db)
-    boxes = await zone_boxes(db)
+    # AISStream is fed by community terrestrial receivers, so coverage is dense over northern Europe
+    # and the US and effectively absent over Indian waters (measured 2026-09-08: 0 reports/min off
+    # Gujarat against 4,458/min off northern Europe). --bbox therefore exists so the recorder can be
+    # pointed at water that actually has receivers; the default stays the app's own watch zones.
+    boxes = bboxes or await zone_boxes(db)
     if not boxes:
         raise SystemExit("No watch zones in the database. Run `python -m scripts.seed_db` first.")
 
@@ -278,18 +293,20 @@ async def run(dry_run: bool) -> None:
         "FilterMessageTypes": ["PositionReport", "ShipStaticData"],
     })
 
+    # A short --seconds run reports often, since the point is to see data arriving straight away.
+    stats_every = min(STATS_SECONDS, seconds / 3) if seconds else STATS_SECONDS
+
     async def periodic() -> None:
         last_stats = datetime.now(UTC)
         while True:
             await asyncio.sleep(FLUSH_SECONDS)
             await c.flush()
-            if (datetime.now(UTC) - last_stats).total_seconds() >= STATS_SECONDS:
+            if (datetime.now(UTC) - last_stats).total_seconds() >= stats_every:
                 log.info(c.stats())
                 last_stats = datetime.now(UTC)
 
-    task = asyncio.create_task(periodic())
-    backoff = 1.0
-    try:
+    async def stream() -> None:
+        nonlocal backoff
         while True:
             try:
                 async with websockets.connect(STREAM_URL, ping_interval=20, ping_timeout=20) as ws:
@@ -309,10 +326,20 @@ async def run(dry_run: bool) -> None:
                 log.warning("disconnected (%s); retrying in %.0fs", e, backoff)
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, MAX_BACKOFF)
+
+    backoff = 1.0
+    task = asyncio.create_task(periodic())
+    streamer = asyncio.create_task(stream())
+    try:
+        # seconds=0 means record until interrupted, which is how it runs for real.
+        await asyncio.wait_for(streamer, timeout=seconds or None)
+    except TimeoutError:
+        log.info("reached the --seconds limit")
     finally:
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
+        for t in (task, streamer):
+            t.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await t
         await c.flush()
         log.info("stopped: %s", c.stats())
         client.close()
@@ -321,10 +348,16 @@ async def run(dry_run: bool) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description="Record live AIS from AISStream into MongoDB")
     ap.add_argument("--dry-run", action="store_true", help="connect and count, but write nothing")
+    ap.add_argument("--seconds", type=float, default=0, help="stop after N seconds (0 = run until interrupted)")
+    ap.add_argument(
+        "--bbox", type=parse_bbox, action="append", metavar="S,W,N,E",
+        help="record this box instead of the watch zones; repeatable. "
+             "AISStream has no receiver coverage over Indian waters.",
+    )
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
     with contextlib.suppress(KeyboardInterrupt):
-        asyncio.run(run(args.dry_run))
+        asyncio.run(run(args.dry_run, args.seconds, args.bbox))
 
 
 if __name__ == "__main__":
