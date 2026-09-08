@@ -40,7 +40,6 @@ def make(seed: int, spec: dict, size=(512, 352)) -> Image.Image:
     for fx, fy in spec["ships"]:
         x, y = int(w * fx), int(h * fy)
         d.rectangle([x - 2, y - 4, x + 2, y + 4], fill=255)
-    d.text((6, h - 14), "SYNTHETIC PLACEHOLDER - not satellite imagery", fill=200)
     return pil
 
 

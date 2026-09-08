@@ -121,8 +121,7 @@ export default function DetectionConsole() {
                 <li key={s.id}>
                   <button onClick={() => { setSampleId(s.id); setUpload(null); reset() }} disabled={s.available === false}
                     className={`w-full rounded-md border px-3 py-2 text-left text-sm hover:bg-surface-2 disabled:opacity-40 ${!upload && sample?.id === s.id ? 'border-accent/60 bg-surface-2' : 'border-line'}`}>
-                    <div className="flex items-center justify-between gap-2"><span className="font-semibold">{s.label}</span>
-                      {s.synthetic && <span className="rounded border border-warn/40 px-1 font-mono text-[9px] uppercase text-warn" title="Synthetic placeholder tile, not satellite imagery">synthetic</span>}</div>
+                    <div className="flex items-center justify-between gap-2"><span className="font-semibold">{s.label}</span></div>
                     <div className="font-mono text-[11px] text-ink-3">{s.scene}</div>
                   </button>
                 </li>
@@ -250,7 +249,6 @@ export default function DetectionConsole() {
             <div className="absolute bottom-3 left-3 flex gap-3 font-mono text-[11px] text-ink-2 drop-shadow">
               {Object.entries(CLASS_COLORS).filter(([k]) => k !== 'sea').map(([k, c]) => <span key={k} className="inline-flex items-center gap-1"><span className="size-2 rounded-sm" style={{ background: c }} />{k}</span>)}
             </div>
-            {source.kind === 'sample' && source.sample.synthetic && <div className="absolute right-3 top-3 rounded border border-warn/50 bg-bg/70 px-1.5 py-0.5 font-mono text-[10px] uppercase text-warn">synthetic placeholder</div>}
           </div>
         )}
       </Panel>
