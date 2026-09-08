@@ -17,11 +17,16 @@
 | `samples/` | demo tiles + `bboxes.json` |
 | `metrics.json` | comparison table written by `train.py`, shown on the console + report |
 
+> **Class scheme: binary (0 sea, 1 oil).** The freely-available Kaggle SAR oil-spill sets are oil-vs-background, so we
+> train a binary detector on real Sentinel-1 data now. The 5-class Krestenitis scheme (sea/oil/look-alike/ship/land)
+> is the upgrade path once that gated dataset is obtained — widen `CLASSES` in `ml/__init__.py` and the same pipeline
+> retrains. See `docs/DECISIONS.md` (2026-09-08).
+
 ## Training — five-model bake-off (Colab T4)
 
 Five candidates, all pre-existing/ImageNet-pretrained except the scratch baseline, trained under one identical harness
-(same loader, class-weighted CE + Dice, 256 px tiles, 40 epochs) and scored on the Krestenitis 110-image test split
-(per-class IoU, mIoU, params, CPU ms). See `docs/DECISIONS.md` (2026-09-08) for the rationale per model.
+(same loader, class-weighted CE + Dice, 256 px tiles) and scored on the held-out test split (per-class IoU, mIoU,
+params, CPU ms). See `docs/DECISIONS.md` (2026-09-08) for the rationale per model.
 
 | id | model | why |
 |---|---|---|
@@ -40,24 +45,23 @@ python -m ml.export --model-name <winner> --weights ml/weights/<winner>.pt
 Only the winner (best mIoU within the CPU-latency budget) is exported and served; the other four remain rows in
 `metrics.json` and appear in the Detection Console comparison table. `notebooks/train_colab.ipynb` drives all of this.
 
-### Getting the Krestenitis dataset (the training blocker)
+### Getting the dataset (Kaggle, free)
 
 The console shows `HEURISTIC` / "pending training" until real weights exist. To train for real:
 
-1. **Request the dataset** — Krestenitis et al. 2019 "Oil Spill Detection Dataset" from MKLab (CERTH-ITI):
-   https://m4d.iti.gr/oil-spill-detection-dataset/ (fill the form; they email a download link). 1002 train + 110 test SAR patches, 5 classes (sea, oil, look-alike, ship, land).
-2. **Unzip** to a folder with this layout (our loader auto-detects it; `labels_1D` index masks preferred):
+1. **Download** a public Sentinel-1 oil-spill set via the Kaggle CLI (needs a free `~/.kaggle/kaggle.json` token):
+   ```bash
+   pip install kaggle
+   kaggle datasets download -d bitsandlayers/sar-oil-spill-segmentation-dataset-sos -p ml/data --unzip
    ```
-   krestenitis/
-     train/{images, labels_1D}
-     test/{images,  labels_1D}
-   ```
-3. **Train + export** (Colab T4 recommended — open `notebooks/train_colab.ipynb`, or locally):
+   Layout: `ml/data/dataset/{train,test}/{sentinel,palsar}/{image,label}` — the loader auto-detects it and prefers the
+   `sentinel` source. Masks are binary (0 background, 255 oil).
+2. **Train + export** (Colab T4 recommended — open `notebooks/train_colab.ipynb`, or locally):
    ```bash
    pip install -r ml/requirements-train.txt
-   python -m ml.train  --data-root /path/to/krestenitis --epochs 40
+   python -m ml.train  --data-root ml/data/dataset --epochs 40          # all five (--limit N for a quick smoke run)
    python -m ml.export --model-name <winner> --weights ml/weights/<winner>.pt
    ```
-4. **Drop `ml/weights/<winner>.onnx` + `.json` on the API server and commit `ml/metrics.json`.** Restart the API →
-   `/api/health` flips `model: heuristic → unet`, and the Detection Console shows the real 5-model comparison. No app
+3. **Drop `ml/weights/<winner>.onnx` + `.json` on the API server and commit `ml/metrics.json`.** Restart the API →
+   `/api/health` flips `model: heuristic → unet`, and the Detection Console shows the real model comparison. No app
    code changes needed.

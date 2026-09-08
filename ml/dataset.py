@@ -1,13 +1,12 @@
-"""Krestenitis et al. 2019 oil-spill dataset → 1-channel SAR tiles + 5-class index masks.
+"""SAR oil-spill dataset loader → 1-channel tiles + binary index masks (0 sea, 1 oil).
 
-The public dataset (MKLab, requested manually — the human blocker) ships as train/ and test/ folders, each with an
-image dir and a mask dir. Masks are usually single-channel index PNGs (labels_1D) or palettised 'P' PNGs whose pixel
-values ARE the class indices; both read straight to 0..4. RGB masks fall back to a palette map. Layout is auto-detected
-so the same loader works across the few distributions that float around.
+Targets the public Kaggle Sentinel-1 oil-spill sets (e.g. Deep-SAR SOS), whose masks are binary PNGs (0 background,
+255 oil). Layout is auto-detected and may nest a source folder, e.g. `<root>/<split>/sentinel/{image,label}`; the
+`sentinel` source is preferred over `palsar` when both are present, matching SAGARNETRA's Sentinel-1 focus.
 
-Preprocessing matches serving exactly (ml/preprocess.normalise_for_model): grayscale, /255, then (x-mean)/std with the
-same mean/std that get written into the ONNX sidecar. Keep them identical or the served model sees a different
-distribution than it trained on.
+Preprocessing matches serving (ml/preprocess.normalise_for_model): grayscale, /255, then (x-mean)/std with the same
+mean/std written into the ONNX sidecar. Widening to the 5-class Krestenitis scheme later needs only CLASSES + this
+mask decode to change.
 """
 
 from __future__ import annotations
@@ -20,23 +19,13 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 
-from . import CLASSES, LAND, LOOKALIKE, OIL, SEA, SHIP
+from . import CLASSES, OIL, SEA
 
 log = logging.getLogger("sagarnetra.ml.dataset")
 
 IMG_EXTS = (".jpg", ".jpeg", ".png", ".tif", ".tiff")
 IMAGE_DIR_NAMES = ("images", "image", "img", "sar")
 MASK_DIR_NAMES = ("labels_1D", "labels_1d", "labels", "label", "masks", "mask", "gt", "annotations")
-
-# Krestenitis RGB palette → class index, used ONLY when masks are stored as RGB. Verify against your copy's README;
-# labels_1D / palettised PNGs are preferred and bypass this entirely.
-RGB_TO_IDX: dict[tuple[int, int, int], int] = {
-    (0, 0, 0): SEA,
-    (0, 255, 255): OIL,
-    (255, 0, 0): LOOKALIKE,
-    (153, 76, 0): SHIP,
-    (0, 153, 0): LAND,
-}
 
 
 def _find_dir(root: Path, names: tuple[str, ...]) -> Path | None:
@@ -48,30 +37,28 @@ def _find_dir(root: Path, names: tuple[str, ...]) -> Path | None:
 
 
 def _resolve_split(root: Path, split: str) -> tuple[Path, Path]:
-    """Return (image_dir, mask_dir) for a split, tolerating a few common folder layouts."""
-    base = root / split
-    if not base.is_dir():
-        # some copies use train/val instead of train/test, or lay images/masks at the root
-        base = root if _find_dir(root, IMAGE_DIR_NAMES) else base
-    img = _find_dir(base, IMAGE_DIR_NAMES)
-    msk = _find_dir(base, MASK_DIR_NAMES)
-    if img is None or msk is None:
-        raise FileNotFoundError(
-            f"could not locate image/mask dirs for split '{split}' under {root}. "
-            f"Expected e.g. {split}/images and {split}/labels_1D."
-        )
-    return img, msk
+    """(image_dir, mask_dir) for a split, tolerating a source subfolder (sentinel/palsar). Prefers sentinel."""
+    base = root / split if (root / split).is_dir() else root
+    img, msk = _find_dir(base, IMAGE_DIR_NAMES), _find_dir(base, MASK_DIR_NAMES)
+    if img and msk:
+        return img, msk
+    subs = sorted((d for d in base.iterdir() if d.is_dir()), key=lambda d: 0 if "sentinel" in d.name.lower() else 1)
+    for sub in subs:
+        img, msk = _find_dir(sub, IMAGE_DIR_NAMES), _find_dir(sub, MASK_DIR_NAMES)
+        if img and msk:
+            return img, msk
+    raise FileNotFoundError(
+        f"could not locate image/mask dirs for split '{split}' under {root} "
+        f"(looked directly and one level down into source subfolders)."
+    )
 
 
 def _mask_to_index(mask_img: Image.Image) -> np.ndarray:
-    """Palettised/single-channel masks are already indices; RGB masks are mapped via the palette."""
-    if mask_img.mode in ("P", "L", "I", "I;16"):
-        return np.array(mask_img).astype(np.int64)
-    rgb = np.array(mask_img.convert("RGB"))
-    out = np.zeros(rgb.shape[:2], np.int64)
-    for (r, g, b), idx in RGB_TO_IDX.items():
-        out[(rgb[..., 0] == r) & (rgb[..., 1] == g) & (rgb[..., 2] == b)] = idx
-    return out
+    """Binary decode: bright (oil, ~255) -> OIL, everything else -> SEA. Works for single-channel or RGB masks."""
+    a = np.array(mask_img)
+    if a.ndim == 3:
+        a = a[..., 0]
+    return np.where(a > 127, OIL, SEA).astype(np.int64)
 
 
 class KrestenitisDataset(Dataset):
@@ -113,11 +100,11 @@ class KrestenitisDataset(Dataset):
         gray, mask = self._resize(gray, mask)
 
         if self.augment:
-            if np.random.rand() < 0.5:  # horizontal flip
+            if np.random.rand() < 0.5:
                 gray, mask = gray[:, ::-1].copy(), mask[:, ::-1].copy()
-            if np.random.rand() < 0.5:  # vertical flip
+            if np.random.rand() < 0.5:
                 gray, mask = gray[::-1].copy(), mask[::-1].copy()
-            k = int(np.random.randint(0, 4))  # 90-degree rotations
+            k = int(np.random.randint(0, 4))
             if k:
                 gray, mask = np.rot90(gray, k).copy(), np.rot90(mask, k).copy()
 
@@ -126,7 +113,7 @@ class KrestenitisDataset(Dataset):
 
 
 def class_weights(ds: KrestenitisDataset, n_classes: int = len(CLASSES)) -> torch.Tensor:
-    """Median-frequency balancing (Eigen & Fergus): weight_c = median(freq) / freq_c. Damps the huge sea-class prior."""
+    """Median-frequency balancing: weight_c = median(freq) / freq_c. Damps the dominant sea class."""
     counts = np.zeros(n_classes, np.float64)
     for _, mask in ((ds[i]) for i in range(len(ds))):
         binc = np.bincount(mask.numpy().ravel(), minlength=n_classes)

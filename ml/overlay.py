@@ -7,14 +7,11 @@ import base64
 import cv2
 import numpy as np
 
-from . import LAND, LOOKALIKE, OIL, SHIP
+from . import OIL
 
-# BGRA
+# BGRA — binary scheme: only the oil class is painted; sea (background) stays transparent.
 COLORS = {
     OIL: (107, 107, 224, 150),
-    LOOKALIKE: (49, 163, 227, 120),
-    SHIP: (191, 179, 79, 200),
-    LAND: (163, 138, 125, 110),
 }
 
 

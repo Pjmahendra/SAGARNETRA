@@ -139,12 +139,17 @@ def main() -> None:
     p.add_argument("--out-dir", type=Path, default=DEFAULT_WEIGHTS_DIR)
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--test-split", default="test")
+    p.add_argument("--limit", type=int, default=0, help="cap train/test samples for a quick smoke run (0 = all)")
     args = p.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
     common = dict(root=args.data_root, img_size=args.img_size, mean=args.mean, std=args.std)
     train_ds = KrestenitisDataset(split="train", augment=True, **common)
     test_ds = KrestenitisDataset(split=args.test_split, augment=False, **common)
+    if args.limit:
+        train_ds.items = train_ds.items[: args.limit]
+        test_ds.items = test_ds.items[: max(20, args.limit // 4)]
+        log.info("smoke run: limited to %d train / %d test", len(train_ds), len(test_ds))
     train_dl = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=2, drop_last=True)
     test_dl = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, num_workers=2)
 
