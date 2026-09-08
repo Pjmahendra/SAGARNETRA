@@ -22,15 +22,14 @@ from ..services.sectors import zone_filter
 router = APIRouter(prefix="/api/detect", tags=["detect"])
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
-# The five bake-off candidates (mirrors ml/models.py). Shown on the console so the officer sees the whole lineup;
-# real per-model IoU/mIoU replace these rows once training writes ml/metrics.json (see docs/DECISIONS.md 2026-09-08).
-CANDIDATE_MODELS = [
-    {"name": "unet_scratch", "display": "U-Net (from scratch)", "status": "pending"},
-    {"name": "unet_resnet34", "display": "U-Net + ResNet-34", "status": "pending"},
-    {"name": "unetpp_resnet34", "display": "U-Net++ + ResNet-34", "status": "pending"},
-    {"name": "deeplabv3p_resnet50", "display": "DeepLabV3+ + ResNet-50", "status": "pending"},
-    {"name": "fpn_effb3", "display": "FPN + EfficientNet-B3", "status": "pending"},
-]
+# Display names for our trained models (mirrors ml/models.py).
+OUR_MODEL_DISPLAY = {
+    "unet_scratch": "U-Net (from scratch)",
+    "unet_resnet34": "U-Net + ResNet-34",
+    "unetpp_resnet34": "U-Net++ + ResNet-34",
+    "deeplabv3p_resnet50": "DeepLabV3+ + ResNet-50",
+    "fpn_effb3": "FPN + EfficientNet-B3",
+}
 
 
 def get_detector(request: Request) -> Detector:
@@ -74,10 +73,11 @@ async def sample_image(sample_id: str):
 @router.get("/model")
 async def model_info(_: Officer, request: Request):
     det = get_detector(request)
-    # Show the full 5-model lineup, with trained rows (from metrics.json) overriding their "pending" placeholders.
-    trained = {m["name"]: m for m in load_metrics()}
-    merged = [trained.get(c["name"], c) for c in CANDIDATE_MODELS]
-    merged += [m for n, m in trained.items() if n not in {c["name"] for c in CANDIDATE_MODELS}]
+    # Our trained models only (no untrained placeholders); the comparison set is the published pre-existing models below.
+    merged = []
+    for m in load_metrics():
+        m = {**m, "display": m.get("display") or OUR_MODEL_DISPLAY.get(m["name"], m["name"])}
+        merged.append(m)
     # Published results from the literature, shown beside ours for context (reference, not run by us).
     benchmarks: list = []
     bpath = ML_ROOT / "benchmarks.json"

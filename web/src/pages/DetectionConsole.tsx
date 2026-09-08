@@ -134,43 +134,36 @@ export default function DetectionConsole() {
           </label>
         </Panel>
 
-        <Panel title="Models · 5-way bake-off" bodyClassName="p-3">
+        <Panel title="Our model vs pre-existing" bodyClassName="p-3">
           {!model.data ? <Spinner /> : (
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <EngineBadge engine={model.data.engine} />
                 <span className="text-[11px] text-ink-3">{model.data.engine === 'unet' ? `serving ${model.data.model_name}` : 'heuristic fallback active'}</span>
               </div>
+
+              <div className="label-caps text-[10px]">Ours · trained on real Sentinel-1</div>
               <table className="w-full text-[11px]">
-                <thead><tr className="text-left font-mono uppercase text-ink-3"><th className="pb-1">Model</th><th className="pb-1 text-right">mIoU</th><th className="pb-1 text-right">Oil</th><th className="pb-1 text-right">Look-alike</th></tr></thead>
+                <thead><tr className="text-left font-mono uppercase text-ink-3"><th className="pb-1">Model</th><th className="pb-1 text-right">mIoU</th><th className="pb-1 text-right">Oil IoU</th></tr></thead>
                 <tbody>
-                  {model.data.metrics.map((m) => {
+                  {model.data.metrics.length === 0 ? (
+                    <tr><td colSpan={3} className="py-0.5 text-ink-3">no trained model yet</td></tr>
+                  ) : model.data.metrics.map((m) => {
                     const served = m.name === model.data!.model_name
-                    const trained = typeof m.miou === 'number'
                     return (
                       <tr key={m.name} className={served ? 'font-semibold text-ink' : 'text-ink-2'}>
                         <td className="py-0.5">{served ? '▶ ' : ''}{m.display ?? m.name}</td>
-                        {trained ? (
-                          <>
-                            <td className="py-0.5 text-right font-mono tnum">{(m.miou! * 100).toFixed(1)}</td>
-                            <td className="py-0.5 text-right font-mono tnum">{((m.iou?.oil ?? 0) * 100).toFixed(0)}</td>
-                            <td className="py-0.5 text-right font-mono tnum">{((m.iou?.lookalike ?? 0) * 100).toFixed(0)}</td>
-                          </>
-                        ) : (
-                          <td colSpan={3} className="py-0.5 text-right font-mono text-ink-3">pending training</td>
-                        )}
+                        <td className="py-0.5 text-right font-mono tnum">{typeof m.miou === 'number' ? (m.miou * 100).toFixed(1) : '—'}</td>
+                        <td className="py-0.5 text-right font-mono tnum">{typeof m.iou?.oil === 'number' ? (m.iou.oil * 100).toFixed(0) : '—'}</td>
                       </tr>
                     )
                   })}
                 </tbody>
               </table>
-              {model.data.engine === 'heuristic' && (
-                <p className="text-[11px] text-ink-3">Trained ONNX weights not on this server yet — per-model IoU fills in after the Colab bake-off; the heuristic answers meanwhile.</p>
-              )}
 
               {model.data.benchmarks && model.data.benchmarks.length > 0 && (
-                <div className="mt-3 border-t border-line pt-2">
-                  <div className="label-caps mb-1 text-[10px]">Published benchmarks · literature</div>
+                <div className="mt-2 border-t border-line pt-2">
+                  <div className="label-caps mb-1 text-[10px]">Pre-existing models · published</div>
                   <table className="w-full text-[11px]">
                     <tbody>
                       {model.data.benchmarks.map((b) => (
@@ -182,7 +175,7 @@ export default function DetectionConsole() {
                       ))}
                     </tbody>
                   </table>
-                  <p className="mt-1 text-[10px] text-ink-3">As reported by the authors on their own datasets — reference, not run here.</p>
+                  <p className="mt-1 text-[10px] text-ink-3">Published results, cited to source — reference, not run here.</p>
                 </div>
               )}
             </div>
