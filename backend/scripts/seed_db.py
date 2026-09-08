@@ -116,13 +116,18 @@ async def seed_accounts(db) -> dict:
     for email, name, pw, role, org, region, zones in accounts:
         doc = await find_by_email(db, email)
         if doc:
-            # Passwords and activity are the operator's, so they are never touched. Sector
-            # assignment is this script's to own: now that the endpoints actually scope by zone,
-            # an account left on a stale zone list silently loses part of its sector.
-            if doc.get("zone_ids") != zones or doc.get("region") != region:
-                await db.users.update_one({"_id": doc["_id"]}, {"$set": {"zone_ids": zones, "region": region}})
+            # Passwords and activity are the operator's, so they are never touched. Everything
+            # that describes the account's *job* is this script's to own: sectors, because a stale
+            # zone list silently hides part of an officer's water, and name/org/region, because
+            # those are what the console prints. Reconciling only the zone list left the live-AIS
+            # officer still labelled "Bonn Agreement liaison, North Sea" after it took on an
+            # Indian sector — the account did the right thing and described itself wrongly.
+            want = {"zone_ids": zones, "region": region, "name": name, "org": org}
+            drift = {k: v for k, v in want.items() if doc.get(k) != v}
+            if drift:
+                await db.users.update_one({"_id": doc["_id"]}, {"$set": drift})
                 doc = await find_by_email(db, email)
-                print(f"users: {email} exists, sector updated to {zones or 'all zones'}")
+                print(f"users: {email} exists, updated {', '.join(sorted(drift))}")
             else:
                 print(f"users: {email} exists, left unchanged")
         else:
