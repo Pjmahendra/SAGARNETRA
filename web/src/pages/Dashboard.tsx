@@ -185,7 +185,11 @@ export default function Dashboard() {
                         <motion.div key="map" className="absolute inset-0" initial={{ opacity: 0, scale: 1.08 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.55, ease: 'easeOut' }}>
                           {!det ? <div className="grid size-full place-items-center"><Spinner label="Loading map" /></div> : (
                             // Just the oil-spill mark in the region — no ships/AIS/drift here. Click it to enquire and test.
-                            <RealMap className="size-full" focus={focus} polygon={det.polygon} points={[...mapPoints, ...spillMark]} />
+                            // Zooming right out is the officer asking for the whole earth, which is
+                            // what the globe is for: the dive reverses instead of showing a flat
+                            // world map repeating sideways with grey where the poles should be.
+                            <RealMap className="size-full" focus={focus} polygon={det.polygon}
+                              points={[...mapPoints, ...spillMark]} onZoomOut={() => setPhase('globe')} />
                           )}
                         </motion.div>
                       ) : (

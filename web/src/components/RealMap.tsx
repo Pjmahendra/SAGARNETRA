@@ -10,6 +10,14 @@ type Basemap = 'satellite' | 'streets'
 
 const SLICK_PANE = 'slick'
 
+/**
+ * Zoom floor. Below this the world map is smaller than the panel it sits in, so Leaflet tiles the
+ * earth sideways and pads the poles with grey. Nothing useful is ever shown down there.
+ */
+const MIN_ZOOM = 3
+/** Latitude Web Mercator can actually draw; past it the projection runs to infinity. */
+const WORLD_BOUNDS: [[number, number], [number, number]] = [[-85.05, -180], [85.05, 180]]
+
 /** True-colour Esri World Imagery — real coastlines, water, terrain, no styling layer between us and the ground. */
 const BASEMAPS: Record<Basemap, { url: string; attribution: string; maxZoom: number }> = {
   satellite: {
@@ -73,6 +81,19 @@ function CursorReadout({ onChange }: { onChange: (c: Cursor | null) => void }) {
 }
 
 /**
+ * A flat Mercator map has nothing sensible to show once the whole world fits in the panel: the
+ * tile pyramid is smaller than the container, so it repeats sideways and leaves grey above and
+ * below the poles. `MIN_ZOOM` is the floor where the world still fills a panel; reaching it means
+ * the officer wants to see the whole earth, which is the globe's job, so we hand back to it.
+ */
+function ZoomOutWatch({ at, onZoomOut }: { at: number; onZoomOut: () => void }) {
+  const map = useMapEvents({
+    zoomend: () => { if (map.getZoom() <= at) onZoomOut() },
+  })
+  return null
+}
+
+/**
  * Leaflet paints every pane in its own stacking context, so `mix-blend-mode` set on a path
  * blends against the (transparent) overlay pane and never reaches the tiles. Set on a pane
  * of its own, between the tile pane (z 200) and the overlay pane (z 400), it does: the slick
@@ -99,7 +120,7 @@ function SlickPane({ children }: { children: ReactNode }) {
  * network access to fetch tiles; PlanView stays the default, offline-safe view for that reason.
  */
 export default function RealMap({
-  polygon = [], zones = [], vessels = [], points = [], track, tracks = [], onSelect, className, focus,
+  polygon = [], zones = [], vessels = [], points = [], track, tracks = [], onSelect, className, focus, onZoomOut,
 }: {
   polygon?: LonLat[]
   zones?: OriginZone[]
@@ -110,6 +131,8 @@ export default function RealMap({
   onSelect?: (mmsi: string) => void
   className?: string
   focus?: [number, number, number, number]
+  /** Called when the officer zooms all the way out, so a host with a globe can take over. */
+  onZoomOut?: () => void
 }) {
   const [basemap, setBasemap] = useState<Basemap>('satellite')
   const [cursor, setCursor] = useState<Cursor | null>(null)
@@ -130,16 +153,23 @@ export default function RealMap({
 
   return (
     <div className={className} style={{ position: 'relative' }}>
-      <MapContainer center={center} zoom={11} bounds={bounds} className="size-full" scrollWheelZoom>
-        <TileLayer key={basemap} attribution={bm.attribution} url={bm.url} maxZoom={bm.maxZoom} />
+      <MapContainer
+        center={center} zoom={11} bounds={bounds} className="size-full" scrollWheelZoom
+        minZoom={MIN_ZOOM} maxZoom={bm.maxZoom}
+        // Keep the earth in one piece: one copy of the world, no panning off into grey.
+        maxBounds={WORLD_BOUNDS} maxBoundsViscosity={1} worldCopyJump={false}
+      >
+        <TileLayer key={basemap} attribution={bm.attribution} url={bm.url} maxZoom={bm.maxZoom} noWrap />
         <ScaleControl position="bottomright" imperial={false} />
         <CursorReadout onChange={setCursor} />
+        {onZoomOut && <ZoomOutWatch at={MIN_ZOOM} onZoomOut={onZoomOut} />}
         {basemap === 'satellite' && (
           <TileLayer
             attribution=""
             url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
             maxZoom={19}
             opacity={0.85}
+            noWrap
           />
         )}
 
