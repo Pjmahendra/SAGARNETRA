@@ -146,6 +146,24 @@ export default function DetectionConsole() {
               {model.data.engine === 'heuristic' && (
                 <p className="text-[11px] text-ink-3">Trained ONNX weights not on this server yet — per-model IoU fills in after the Colab bake-off; the heuristic answers meanwhile.</p>
               )}
+
+              {model.data.benchmarks && model.data.benchmarks.length > 0 && (
+                <div className="mt-3 border-t border-line pt-2">
+                  <div className="label-caps mb-1 text-[10px]">Published benchmarks · literature</div>
+                  <table className="w-full text-[11px]">
+                    <tbody>
+                      {model.data.benchmarks.map((b) => (
+                        <tr key={b.name} className="text-ink-2">
+                          <td className="py-0.5">{b.name}</td>
+                          <td className="py-0.5 text-right font-mono tnum">{typeof b.miou === 'number' ? `${(b.miou * 100).toFixed(0)}%` : '—'}</td>
+                          <td className="max-w-0 truncate py-0.5 pl-2 text-[10px] text-ink-3" title={b.source}>{b.source?.split(/[—,]/)[0]}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="mt-1 text-[10px] text-ink-3">As reported by the authors on their own datasets — reference, not run here.</p>
+                </div>
+              )}
             </div>
           )}
         </Panel>

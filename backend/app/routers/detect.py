@@ -9,7 +9,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
-from ml import SAMPLES_DIR
+from ml import ML_ROOT, SAMPLES_DIR
 from ml.infer import Detector, load_metrics
 from ml.preprocess import load_tile
 from pydantic import BaseModel, Field
@@ -75,10 +75,19 @@ async def model_info(_: Officer, request: Request):
     trained = {m["name"]: m for m in load_metrics()}
     merged = [trained.get(c["name"], c) for c in CANDIDATE_MODELS]
     merged += [m for n, m in trained.items() if n not in {c["name"] for c in CANDIDATE_MODELS}]
+    # Published results from the literature, shown beside ours for context (reference, not run by us).
+    benchmarks: list = []
+    bpath = ML_ROOT / "benchmarks.json"
+    if bpath.exists():
+        try:
+            benchmarks = json.loads(bpath.read_text()).get("models", [])
+        except Exception:
+            benchmarks = []
     return {
         "engine": det.engine,
         "model_name": det.model.name if det.model else None,
         "metrics": merged,
+        "benchmarks": benchmarks,
     }
 
 

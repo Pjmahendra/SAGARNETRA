@@ -1,0 +1,40 @@
+{
+  "note": "Published results as REPORTED BY THE AUTHORS on their own datasets/class schemes. Reference points, not run by us — shown beside our trained models for context. Verify/complete exact figures against each cited paper before presenting.",
+  "models": [
+    {
+      "name": "DeepLabV3+",
+      "miou": 0.65,
+      "iou": {},
+      "source": "Krestenitis et al. 2019, Remote Sensing 11(15) — 5-class SAR benchmark (best model)",
+      "published": true
+    },
+    {
+      "name": "U-Net",
+      "miou": null,
+      "iou": {},
+      "source": "Krestenitis et al. 2019, Remote Sensing 11(15) — fill exact mIoU from the paper",
+      "published": true
+    },
+    {
+      "name": "LinkNet",
+      "miou": null,
+      "iou": {},
+      "source": "Krestenitis et al. 2019, Remote Sensing 11(15) — fill exact mIoU from the paper",
+      "published": true
+    },
+    {
+      "name": "PSPNet",
+      "miou": null,
+      "iou": {},
+      "source": "Krestenitis et al. 2019, Remote Sensing 11(15) — fill exact mIoU from the paper",
+      "published": true
+    },
+    {
+      "name": "ResNet-34 U-Net",
+      "miou": null,
+      "iou": {},
+      "source": "SkyTruth Cerulean (production system; segmentation IoU not publicly reported)",
+      "published": true
+    }
+  ]
+}

@@ -210,6 +210,7 @@ export interface ModelInfo {
   engine: Engine
   model_name: string | null
   metrics: { name: string; display?: string; miou?: number; iou?: Record<string, number>; params_m?: number; cpu_ms?: number; status?: string }[]
+  benchmarks?: { name: string; miou?: number | null; iou?: Record<string, number>; source?: string; published?: boolean }[]
 }
 
 /** The incident's numbers frozen at the moment of export. Never re-read from the live incident. */

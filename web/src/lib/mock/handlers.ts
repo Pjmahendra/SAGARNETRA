@@ -55,6 +55,12 @@ export async function mockHandle<T>(method: string, path: string, body?: unknown
     { name: 'unetpp_resnet34', display: 'U-Net++ + ResNet-34', miou: 0.679, iou: { sea: 0.97, oil: 0.60, lookalike: 0.48, ship: 0.65, land: 0.94 }, params_m: 26.1, cpu_ms: 720 },
     { name: 'deeplabv3p_resnet50', display: 'DeepLabV3+ + ResNet-50', miou: 0.681, iou: { sea: 0.97, oil: 0.61, lookalike: 0.49, ship: 0.64, land: 0.94 }, params_m: 40.3, cpu_ms: 1150 },
     { name: 'fpn_effb3', display: 'FPN + EfficientNet-B3', miou: 0.686, iou: { sea: 0.97, oil: 0.62, lookalike: 0.50, ship: 0.67, land: 0.95 }, params_m: 17.6, cpu_ms: 540 },
+  ], benchmarks: [
+    { name: 'DeepLabV3+', miou: 0.65, source: 'Krestenitis et al. 2019, Remote Sensing — 5-class SAR benchmark', published: true },
+    { name: 'U-Net', miou: null, source: 'Krestenitis et al. 2019, Remote Sensing', published: true },
+    { name: 'LinkNet', miou: null, source: 'Krestenitis et al. 2019, Remote Sensing', published: true },
+    { name: 'PSPNet', miou: null, source: 'Krestenitis et al. 2019, Remote Sensing', published: true },
+    { name: 'ResNet-34 U-Net', miou: null, source: 'SkyTruth Cerulean (production; IoU not published)', published: true },
   ] } as T
   if (key === 'GET /api/reports') return REPORTS as T
   const rp = /^\/api\/reports\/([^/]+)$/.exec(path)
