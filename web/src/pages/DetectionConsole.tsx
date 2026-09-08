@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { AlertTriangle, CheckCircle2, HelpCircle, Play, Upload } from 'lucide-react'
 import { api, ApiError, assetUrl, MOCK_MODE } from '../lib/api'
 import { fmtCoord, fmtKm2, fmtUtc } from '../lib/format'
 import type { DetectResult, DetectSample, LookalikeReason, VerifyDecision } from '../lib/types'
 import { Button, Empty, EngineBadge, ErrorNote, PageHeader, Panel, Spinner } from '../components/Primitives'
 import { useUi } from '../store/ui'
+import { DUR, EASE_OUT } from '../lib/motion'
 
 const CLASS_COLORS: Record<string, string> = { sea: '#1e6b74', oil: '#c7301f', lookalike: '#ae3a02', ship: '#ff6803', land: '#928c83' }
 const REASONS: { value: LookalikeReason; label: string }[] = [
@@ -39,6 +40,7 @@ type Source = { kind: 'sample'; sample: DetectSample } | { kind: 'upload'; file:
 export default function DetectionConsole() {
   const navigate = useNavigate()
   const { zoneId } = useUi()
+  const still = useReducedMotion()
   const [params] = useSearchParams()  // deep link from the command view: ?sample=<id> preselects that tile
   const samples = useQuery({ queryKey: ['detect', 'samples'], queryFn: api.detectSamples })
   const model = useQuery({ queryKey: ['detect', 'model'], queryFn: api.modelInfo })
@@ -182,7 +184,17 @@ export default function DetectionConsole() {
         {!source ? <div className="p-4"><Empty title="Pick a tile" /></div> : (
           <div className="relative aspect-[512/352] w-full overflow-hidden bg-black">
             <SarCanvas seed={title} />
-            <img src={imageSrc} alt="" className="absolute inset-0 size-full object-fill" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+            {/* The tile settles in rather than snapping: switching scenes is a change of subject,
+                and the scale is small enough that the framing never visibly moves. Keyed on the
+                source so it replays per tile. */}
+            <motion.img
+              key={imageSrc} src={imageSrc} alt=""
+              className="absolute inset-0 size-full object-fill"
+              initial={still ? false : { opacity: 0, scale: 1.02 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: DUR.slow, ease: EASE_OUT }}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+            />
             <AnimatePresence>
               {result && (result.mask_png || hasSpill) && (
                 <motion.div key={result.detection_id} initial={{ opacity: 0 }} animate={{ opacity }} exit={{ opacity: 0 }} transition={{ duration: 0.6 }} className="absolute inset-0">
