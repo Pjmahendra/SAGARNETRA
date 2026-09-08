@@ -33,6 +33,12 @@ export default function Dashboard() {
   // command view, folded into the dashboard's existing panel — the resting look is unchanged.
   const detailQ = useQuery({ queryKey: ['incident', selectedId], queryFn: () => api.incident(selectedId as string), enabled: !!selectedId })
   const sectorQ = useQuery({ queryKey: ['sector', selected?.zone_id], queryFn: () => api.sector(selected!.zone_id as string), enabled: !!selected?.zone_id })
+  const samplesQ = useQuery({ queryKey: ['detect', 'samples'], queryFn: api.detectSamples })
+  // Which sample tile a detection sits on: the one whose footprint contains its centroid. Lets an
+  // unconfirmed spill deep-link straight onto its scene in the console.
+  const tileFor = ([lon, lat]: LonLat) =>
+    (samplesQ.data ?? []).find((s) => lon >= s.bbox[0] && lon <= s.bbox[2] && lat >= s.bbox[1] && lat <= s.bbox[3])
+
   const det = detailQ.data
   const mapPoints: MapPoint[] = (sectorQ.data?.detections ?? [])
     .filter((d) => Array.isArray(d.centroid) && d.centroid.length === 2)
@@ -53,7 +59,11 @@ export default function Dashboard() {
     const inc = id ? all.find((i) => i.id === id) : null
     // Not a confirmed incident yet (still a raw detection) — send the officer to the console to run the
     // models on it and inspect the spill, rather than showing an evidence card it doesn't have.
-    if (inc && inc.status === 'detected') { navigate('/app/detect'); return }
+    if (inc && inc.status === 'detected') {
+      const tile = tileFor(inc.centroid)
+      navigate(tile ? `/app/detect?sample=${tile.id}` : '/app/detect')
+      return
+    }
     if (zoomTimer.current) { clearTimeout(zoomTimer.current); zoomTimer.current = null }
     setSelectedId(id)
     setPhase('globe')
