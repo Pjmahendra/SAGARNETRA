@@ -23,7 +23,7 @@ from .preprocess import Tile, normalise_for_model
 
 log = logging.getLogger("sagarnetra.ml")
 
-MIN_OIL_BLOB_PX = 40
+MIN_OIL_BLOB_PX = 250  # drop small speckle blobs so the mask keeps the main slick, not noise
 TILE = 256
 OVERLAP = 32
 

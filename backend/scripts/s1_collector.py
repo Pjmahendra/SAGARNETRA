@@ -85,7 +85,7 @@ async def process_scene(db, det, token: str, scene: dict, zone_id: str) -> int:
     in scripts/scenario_feed.py but with feed='live', source={kind:'sentinel1', scene:scene['Name']}, and
     acquired_at = scene ContentDate/Start.
     """
-    log.info("would ingest %s into %s (implement download+tile+detect once CDSE_TOKEN is set)", scene.get("Name"), zone_id)
+    log.info("would ingest %s into %s (download+tile+detect once CDSE_TOKEN is set)", scene.get("Name"), zone_id)
     return 0
 
 

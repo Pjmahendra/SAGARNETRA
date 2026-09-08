@@ -73,7 +73,7 @@ async def sample_image(sample_id: str):
 @router.get("/model")
 async def model_info(_: Officer, request: Request):
     det = get_detector(request)
-    # Our trained models only (no untrained placeholders); the comparison set is the published pre-existing models below.
+    # Our trained models only (no untrained placeholders); the pre-existing published models are the comparison below.
     merged = []
     for m in load_metrics():
         m = {**m, "display": m.get("display") or OUR_MODEL_DISPLAY.get(m["name"], m["name"])}

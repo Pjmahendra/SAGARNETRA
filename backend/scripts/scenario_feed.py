@@ -59,7 +59,10 @@ async def inject_one(db, det: Detector) -> tuple[str, float, bool] | None:
         "created_by": None,
         "zone_id": z["_id"],
         "feed": "scenario",  # vs "live" (real CDSE); distinguished in the UI
-        "source": {"kind": "scenario", "tile": tile_path.stem, "scene": f"S1 scenario · {tile_path.stem}", "acquired_at": now},
+        "source": {
+            "kind": "scenario", "tile": tile_path.stem,
+            "scene": f"S1 scenario · {tile_path.stem}", "acquired_at": now,
+        },
         "engine": r.engine,
         "model_name": r.model_name,
         "confidence": r.confidence,
@@ -91,7 +94,7 @@ async def main() -> None:
         while True:
             res = await inject_one(db, det)
             if res:
-                print(f"scenario detection in {res[0]}: engine={det.engine} conf={res[1]:.2f} spill={res[2]} @ {datetime.now(UTC):%H:%M:%SZ}")
+                print(f"scenario detection in {res[0]}: engine={det.engine} conf={res[1]:.2f} spill={res[2]}")
             if not args.loop:
                 break
             await asyncio.sleep(args.loop)
