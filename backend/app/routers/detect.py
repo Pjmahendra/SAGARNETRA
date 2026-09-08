@@ -71,11 +71,14 @@ async def sample_image(sample_id: str):
 @router.get("/model")
 async def model_info(_: Officer, request: Request):
     det = get_detector(request)
-    metrics = load_metrics()
+    # Show the full 5-model lineup, with trained rows (from metrics.json) overriding their "pending" placeholders.
+    trained = {m["name"]: m for m in load_metrics()}
+    merged = [trained.get(c["name"], c) for c in CANDIDATE_MODELS]
+    merged += [m for n, m in trained.items() if n not in {c["name"] for c in CANDIDATE_MODELS}]
     return {
         "engine": det.engine,
         "model_name": det.model.name if det.model else None,
-        "metrics": metrics or CANDIDATE_MODELS,  # show the lineup until trained metrics land
+        "metrics": merged,
     }
 
 
