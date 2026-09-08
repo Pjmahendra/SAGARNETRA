@@ -4,18 +4,18 @@
       "name": "unet_scratch",
       "display": "U-Net (from scratch)",
       "params_m": 7.76,
-      "cpu_ms": 101.8,
-      "miou": 0.6665,
+      "cpu_ms": 67.6,
+      "miou": 0.6753,
       "iou": {
-        "sea": 0.7031,
-        "oil": 0.6298
+        "sea": 0.7339,
+        "oil": 0.6167
       },
       "checkpoint": "C:\\Users\\punee\\SAGARNETRA\\ml\\weights\\unet_scratch.pt",
       "note": "Baseline with no transfer learning; isolates what the pretrained encoders buy."
     }
   ],
   "recommended": "unet_scratch",
-  "test_images": 75,
+  "test_images": 125,
   "mean": 0.5,
   "std": 0.25,
   "img_size": 256
