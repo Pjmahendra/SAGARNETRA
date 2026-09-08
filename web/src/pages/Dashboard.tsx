@@ -9,10 +9,22 @@ import { fmtAgo, fmtKm2, fmtUtc } from '../lib/format'
 import { Empty, EngineBadge, KpiTile, PageHeader, Panel, Spinner, StatusChip, TierChip } from '../components/Primitives'
 import SpillGlobe from '../components/SpillGlobe'
 import RealMap, { type MapPoint } from '../components/RealMap'
-import type { LonLat } from '../lib/types'
+import type { Incident, LonLat } from '../lib/types'
 import { useUi } from '../store/ui'
 
 const ZOOM_MS = 1100 // globe flies to the slick, then the map dives in
+
+// Short region codes so each spill reads as "MA 18.84°N 72.61°E" rather than a repeated zone name.
+const REGION_CODE: Record<string, string> = {
+  'Gujarat Offshore Lane': 'GOL',
+  'Mumbai Approaches': 'MA',
+  'Chennai–Ennore': 'CE',
+}
+function spillName(i: Incident): string {
+  const code = REGION_CODE[i.zone] ?? i.zone.split(/\s+/).map((w) => w[0]).join('').slice(0, 3).toUpperCase()
+  const [lon, lat] = i.centroid
+  return `${code} ${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'} ${Math.abs(lon).toFixed(2)}°${lon >= 0 ? 'E' : 'W'}`
+}
 
 export default function Dashboard() {
   const overview = useQuery({ queryKey: ['overview'], queryFn: api.overview })
@@ -58,15 +70,15 @@ export default function Dashboard() {
   // two never show contradictory localities at once; this ref just stops that reverse effect
   // from immediately undoing the forward sync's own setZone call.
   const skipNextZoneSync = useRef(false)
+  const analyse = (i: Incident) => {
+    const tile = tileFor(i.centroid)
+    navigate(tile ? `/app/detect?sample=${tile.id}` : '/app/detect')
+  }
+
   const selectIncident = (id: string | null) => {
+    // Both confirmed and unconfirmed spills dive to the map + side box; the side box's action differs
+    // (Open investigation vs Analyse). So selection is the same for both.
     const inc = id ? all.find((i) => i.id === id) : null
-    // Not a confirmed incident yet (still a raw detection) — send the officer to the console to run the
-    // models on it and inspect the spill, rather than showing an evidence card it doesn't have.
-    if (inc && inc.status === 'detected') {
-      const tile = tileFor(inc.centroid)
-      navigate(tile ? `/app/detect?sample=${tile.id}` : '/app/detect')
-      return
-    }
     if (zoomTimer.current) { clearTimeout(zoomTimer.current); zoomTimer.current = null }
     setSelectedId(id)
     setPhase('globe')
@@ -83,6 +95,18 @@ export default function Dashboard() {
     if (zoneOf(selected.zone)?.id !== zoneId) { setSelectedId(null); setPhase('globe') }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoneId])
+
+  // Centre the map on the selected spill, and always drop a mark at its centroid (so an unconfirmed spill
+  // with no polygon still shows the oil-spill mark).
+  const focus: [number, number, number, number] | undefined = selected
+    ? [selected.centroid[0] - 0.15, selected.centroid[1] - 0.15, selected.centroid[0] + 0.15, selected.centroid[1] + 0.15]
+    : undefined
+  const spillMark: MapPoint[] = selected
+    ? [{
+        id: `sel-${selected.id}`, position: selected.centroid, tone: 'spill', label: spillName(selected),
+        onClick: () => (selected.status === 'detected' ? analyse(selected) : navigate(`/app/incidents/${selected.id}`)),
+      }]
+    : []
 
   return (
     <div className="p-6">
@@ -118,7 +142,7 @@ export default function Dashboard() {
                         <motion.div key="map" className="absolute inset-0" initial={{ opacity: 0, scale: 1.08 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.55, ease: 'easeOut' }}>
                           {!det ? <div className="grid size-full place-items-center"><Spinner label="Loading map" /></div> : (
                             // Just the oil-spill mark in the region — no ships/AIS/drift here. Click it to enquire and test.
-                            <RealMap className="size-full" polygon={det.polygon} points={mapPoints} />
+                            <RealMap className="size-full" focus={focus} polygon={det.polygon} points={[...mapPoints, ...spillMark]} />
                           )}
                         </motion.div>
                       ) : (
@@ -153,7 +177,8 @@ export default function Dashboard() {
                             <span className="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-ink-3">demo scenario</span>
                           )}
                         </div>
-                        <div className="mt-1 font-display text-2xl font-semibold">{selected.zone}</div>
+                        <div className="mt-1 font-display text-2xl font-semibold">{spillName(selected)}</div>
+                        <div className="text-sm text-ink-3">{selected.zone}</div>
 
                         <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
                           {[
@@ -183,13 +208,27 @@ export default function Dashboard() {
                           )}
                         </div>
 
-                        <Link
-                          to={`/app/incidents/${selected.id}`}
-                          className="mt-4 inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-deep"
-                        >
-                          Open investigation <ArrowRight className="size-4" />
-                        </Link>
-                        <p className="mt-3 text-xs text-ink-3">A lead for inspection, not a verdict. Boarding and sampling confirm.</p>
+                        {selected.status === 'detected' ? (
+                          <button
+                            type="button"
+                            onClick={() => analyse(selected)}
+                            className="mt-4 inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-deep"
+                          >
+                            Analyse with the models <ArrowRight className="size-4" />
+                          </button>
+                        ) : (
+                          <Link
+                            to={`/app/incidents/${selected.id}`}
+                            className="mt-4 inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-deep"
+                          >
+                            Open investigation <ArrowRight className="size-4" />
+                          </Link>
+                        )}
+                        <p className="mt-3 text-xs text-ink-3">
+                          {selected.status === 'detected'
+                            ? 'Unconfirmed detection — run the models to score it, then tag it as an incident.'
+                            : 'A lead for inspection, not a verdict. Boarding and sampling confirm.'}
+                        </p>
                       </motion.div>
                     ) : (
                       <motion.div
@@ -220,7 +259,7 @@ export default function Dashboard() {
                                   className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-2/60"
                                 >
                                   <span className="font-mono text-xs text-ink-2">{i.code}</span>
-                                  <span className="min-w-0 flex-1 truncate text-sm">{i.zone}</span>
+                                  <span className="min-w-0 flex-1 truncate font-mono text-sm">{spillName(i)}</span>
                                   <StatusChip status={i.status} />
                                   <span className="font-mono text-xs tnum text-ink-3">{fmtKm2(i.area_km2)}</span>
                                 </button>
@@ -260,7 +299,7 @@ export default function Dashboard() {
                               <StatusChip status={i.status} />
                               <EngineBadge engine={i.engine} />
                             </div>
-                            <div className="mt-0.5 truncate text-sm text-ink-2">{i.zone} · {fmtKm2(i.area_km2)} · confidence {Math.round(i.confidence * 100)}% · {fmtUtc(i.detected_at)}</div>
+                            <div className="mt-0.5 truncate text-sm text-ink-2">{spillName(i)} · {fmtKm2(i.area_km2)} · confidence {Math.round(i.confidence * 100)}% · {fmtUtc(i.detected_at)}</div>
                           </div>
                           <div className="text-right">
                             {i.top_tier ? <TierChip tier={i.top_tier} /> : <span className="text-xs text-ink-3">not ranked yet</span>}
