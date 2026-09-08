@@ -509,24 +509,9 @@ SAMPLES = [
     },
 ]
 
-REPORTS = [
-    {
-        "_id": "rep-2",
-        "incident_id": "inc-041",
-        "incident_code": "INC-2026-041",
-        "generated_by": "Lt. A. Menon",
-        "generated_at": datetime(2026, 9, 6, 6, 32, tzinfo=UTC),
-        "pages": 6,
-    },
-    {
-        "_id": "rep-1",
-        "incident_id": "inc-040",
-        "incident_code": "INC-2026-040",
-        "generated_by": "Lt. A. Menon",
-        "generated_at": datetime(2026, 8, 30, 10, 4, tzinfo=UTC),
-        "pages": 5,
-    },
-]
+#: Reports are no longer hand-authored fixtures: the seed exports a real one from the real demo
+#: incident through app.services.reports, so a seeded pack and an officer-made pack are identical.
+REPORTS: list[dict] = []
 
 
 # ---- AIS position reports (source="scenario") ----------------------------------------------------------------

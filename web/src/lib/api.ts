@@ -95,6 +95,8 @@ export const api = {
     request<unknown>('POST', `/api/detect/${id}/verify`, { decision, reason, note }),
   modelInfo: () => request<ModelInfo>('GET', '/api/detect/model'),
   reports: () => request<Report[]>('GET', '/api/reports'),
+  report: (id: string) => request<Report>('GET', `/api/reports/${id}`),
+  createReport: (incidentId: string) => request<Report>('POST', '/api/reports', { incident_id: incidentId }),
   adminUsers: () => request<AdminUser[]>('GET', '/api/admin/users'),
   adminAudit: () => request<AuditEntry[]>('GET', '/api/admin/audit'),
   adminZones: () => request<ZoneStatus[]>('GET', '/api/admin/zones'),

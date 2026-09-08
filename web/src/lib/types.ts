@@ -212,12 +212,35 @@ export interface ModelInfo {
   metrics: { name: string; display?: string; miou?: number; iou?: Record<string, number>; params_m?: number; cpu_ms?: number; status?: string }[]
 }
 
+/** The incident's numbers frozen at the moment of export. Never re-read from the live incident. */
+export interface ReportSnapshot {
+  zone: string
+  detected_at: string
+  area_km2: number
+  confidence: number
+  engine: Engine
+  scene: string
+  centroid: LonLat
+  status: IncidentStatus
+  is_demo: boolean
+  ranked_count: number
+  candidates_considered: number | null
+  top_vessel: string | null
+  top_mmsi: string | null
+  top_score: number | null
+  top_tier: Tier | null
+  weather_source?: string | null
+  hashes: { tile_sha256?: string; mask_sha256?: string }
+}
+
 export interface Report {
   id: string
+  incident_id: string
   incident_code: string
+  revision: number
   generated_by: string
   generated_at: string
-  pages: number
+  snapshot: ReportSnapshot
 }
 
 export interface AdminUser extends User {

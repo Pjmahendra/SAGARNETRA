@@ -79,8 +79,3 @@ async def vessel(mmsi: str, _: Officer, db: Db):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Vessel not found")
     return out(doc)
 
-
-@router.get("/reports")
-async def reports(_: Officer, db: Db):
-    docs = await db.reports.find().sort("generated_at", -1).to_list(500)
-    return [out(d) for d in docs]

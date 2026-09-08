@@ -59,3 +59,12 @@
   font-family: var(--font-pixel);
   letter-spacing: 0.02em;
 }
+
+/* Report print view (src/pages/ReportPrint.tsx): A4 page, hide chrome, keep evidence-pack colours
+   on paper so tier chips and status colours survive the print dialog. */
+@media print {
+  @page { size: A4; margin: 14mm; }
+  .no-print { display: none !important; }
+  html, body { background: #fff !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

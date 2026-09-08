@@ -192,9 +192,22 @@ export const DETECT_RESULTS: Record<string, DetectResult> = {
   'kut-04': { detection_id: 'det-kut-04', engine: 'unet', confidence: 0, area_km2: 0, centroid: [69.025, 22.5], polygon: [], heading_deg: 0, mask_png: null, class_pixels: { sea: 64890, oil: 0, lookalike: 310, ship: 22, land: 314 }, inference_ms: 405 },
 }
 
+// Mock mode has no server, so reports live in a mutable array that POST /api/reports appends to.
+// Same shape as the API returns, so the Reports page and the print view cannot tell the difference.
 export const REPORTS: Report[] = [
-  { id: 'rep-2', incident_code: 'INC-2026-041', generated_by: 'Lt. A. Menon', generated_at: '2026-09-06T06:32:00Z', pages: 6 },
-  { id: 'rep-1', incident_code: 'INC-2026-040', generated_by: 'Lt. A. Menon', generated_at: '2026-08-30T10:04:00Z', pages: 5 },
+  {
+    id: 'rep-1', incident_id: INCIDENT_DETAIL.id, incident_code: INCIDENT_DETAIL.code, revision: 1,
+    generated_by: 'Lt. A. Menon', generated_at: '2026-09-06T06:32:00Z',
+    snapshot: {
+      zone: INCIDENT_DETAIL.zone, detected_at: INCIDENT_DETAIL.detected_at, area_km2: INCIDENT_DETAIL.area_km2,
+      confidence: INCIDENT_DETAIL.confidence, engine: INCIDENT_DETAIL.engine, scene: INCIDENT_DETAIL.scene,
+      centroid: INCIDENT_DETAIL.centroid, status: INCIDENT_DETAIL.status, is_demo: true,
+      ranked_count: INCIDENT_DETAIL.ranking.length, candidates_considered: INCIDENT_DETAIL.candidates_considered ?? null,
+      top_vessel: INCIDENT_DETAIL.ranking[0]?.name ?? null, top_mmsi: INCIDENT_DETAIL.ranking[0]?.mmsi ?? null,
+      top_score: INCIDENT_DETAIL.ranking[0]?.score ?? null, top_tier: INCIDENT_DETAIL.ranking[0]?.tier ?? null,
+      weather_source: INCIDENT_DETAIL.drift_inputs.weather_source ?? null, hashes: INCIDENT_DETAIL.hashes,
+    },
+  },
 ]
 
 export const AUDIT: AuditEntry[] = [

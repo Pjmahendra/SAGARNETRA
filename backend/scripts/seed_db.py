@@ -32,7 +32,7 @@ from shapely.geometry import Point, shape  # noqa: E402
 
 from app.config import get_settings  # noqa: E402
 from app.db import connect, ensure_indexes  # noqa: E402
-from app.services import drift, incidents, weather  # noqa: E402
+from app.services import drift, incidents, reports, weather  # noqa: E402
 from app.services.ranking import LOOKBACK_H  # noqa: E402
 from app.services.users import create_user, find_by_email  # noqa: E402
 from scripts.demo_scenario import (  # noqa: E402
@@ -115,7 +115,10 @@ async def seed_accounts(db) -> dict:
                 must_change_password=False,
             )
             print(f"users: created {email} ({role})")
-        if role == "officer":
+        # The demo incident belongs to the Gujarat sector, so it must be created by the Indian
+        # officer. Matching on email, not "the last officer in the list", which silently handed
+        # the case to the North Sea liaison as soon as a second officer was added.
+        if email == "officer@sagarnetra.in":
             officer = doc
     return officer
 
@@ -191,6 +194,18 @@ async def seed_demo_incident(db, officer: dict) -> None:
         f"demo: {inc['code']} created, {inc['candidates_considered']} vessels considered, {len(inc['ranking'])} ranked, "
         f"top = {top['name'] if top else 'none'} ({top['score'] if top else '-'}/100, {top['tier'] if top else '-'})"
     )
+
+    # An already-exported evidence pack, so the Reports page has something real on a fresh seed.
+    # Built through the same service the export endpoint uses, so a seeded pack and an officer's
+    # pack are byte-identical in shape — no fixture to drift out of sync with the incident.
+    await db.reports.delete_many({"incident_id": inc["_id"]})
+    report = reports.build(inc, by_name=officer["name"], by_id=officer["_id"], revision=1)
+    await db.reports.insert_one(report)
+    await db.incidents.update_one(
+        {"_id": inc["_id"]},
+        {"$push": {"events": reports.export_event(1, report["_id"], officer["name"], report["generated_at"])}},
+    )
+    print(f"demo: evidence pack {report['_id']} (revision 1) exported for {inc['code']}")
 
 
 async def seed_pending_detections(db) -> None:

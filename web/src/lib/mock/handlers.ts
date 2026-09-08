@@ -57,6 +57,32 @@ export async function mockHandle<T>(method: string, path: string, body?: unknown
     { name: 'fpn_effb3', display: 'FPN + EfficientNet-B3', miou: 0.686, iou: { sea: 0.97, oil: 0.62, lookalike: 0.50, ship: 0.67, land: 0.95 }, params_m: 17.6, cpu_ms: 540 },
   ] } as T
   if (key === 'GET /api/reports') return REPORTS as T
+  const rp = /^\/api\/reports\/([^/]+)$/.exec(path)
+  if (rp && method === 'GET') {
+    const r = REPORTS.find((x) => x.id === rp[1])
+    if (!r) throw new MockError(404, 'Report not found')
+    return r as T
+  }
+  if (key === 'POST /api/reports') {
+    const incidentId = (body as { incident_id?: string } | undefined)?.incident_id
+    if (incidentId !== INCIDENT_DETAIL.id) throw new MockError(404, 'Incident not found')
+    const d = INCIDENT_DETAIL
+    const created = {
+      id: `rep-${REPORTS.length + 1}`, incident_id: d.id, incident_code: d.code,
+      revision: REPORTS.filter((x) => x.incident_id === d.id).length + 1,
+      generated_by: 'Lt. A. Menon', generated_at: new Date().toISOString(),
+      snapshot: {
+        zone: d.zone, detected_at: d.detected_at, area_km2: d.area_km2, confidence: d.confidence,
+        engine: d.engine, scene: d.scene, centroid: d.centroid, status: d.status, is_demo: true,
+        ranked_count: d.ranking.length, candidates_considered: d.candidates_considered ?? null,
+        top_vessel: d.ranking[0]?.name ?? null, top_mmsi: d.ranking[0]?.mmsi ?? null,
+        top_score: d.ranking[0]?.score ?? null, top_tier: d.ranking[0]?.tier ?? null,
+        weather_source: d.drift_inputs.weather_source ?? null, hashes: d.hashes,
+      },
+    }
+    REPORTS.unshift(created)
+    return created as T
+  }
 
   const sm = path.match(/^\/api\/sectors\/([^/]+)$/)
   if (sm && method === 'GET') {

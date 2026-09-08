@@ -16,7 +16,11 @@ const Incidents = lazy(() => import('./pages/Incidents'))
 const Investigation = lazy(() => import('./pages/Investigation'))
 const Vessels = lazy(() => import('./pages/Vessels'))
 const Reports = lazy(() => import('./pages/Reports'))
+const ReportPrint = lazy(() => import('./pages/ReportPrint'))
 const Admin = lazy(() => import('./pages/Admin'))
+
+/** The printable evidence pack is a document, not a console page: no shell, and no curtain. */
+const PRINT_PATH = /^\/app\/reports\/[^/]+\/print$/
 
 const Lazy = ({ children }: { children: React.ReactNode }) => (
   <Suspense fallback={<div className="p-6"><Spinner label="Loading" /></div>}>{children}</Suspense>
@@ -44,7 +48,9 @@ function AppRoutes() {
   // curtain start in the same commit as the address change. An effect would paint one frame of
   // the destination first, which is the flash this exists to prevent.
   if (phase === 'idle' && location.pathname !== display.pathname) {
-    const inConsole = location.pathname.startsWith('/app') && display.pathname.startsWith('/app')
+    const inConsole = [location.pathname, display.pathname].every(
+      (p) => p.startsWith('/app') && !PRINT_PATH.test(p),
+    )
     if (inConsole) setPhase('cover')
     else setDisplay(location)
   }
@@ -57,6 +63,8 @@ function AppRoutes() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route element={<RequireAuth />}>
+          {/* Outside AppShell: the evidence pack prints as a document, with no console chrome. */}
+          <Route path="/app/reports/:id/print" element={<Lazy><ReportPrint /></Lazy>} />
           <Route path="/app" element={<AppShell />}>
             <Route index element={<Lazy><Dashboard /></Lazy>} />
             <Route path="detect" element={<Lazy><DetectionConsole /></Lazy>} />

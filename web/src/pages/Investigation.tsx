@@ -33,6 +33,17 @@ export default function Investigation() {
   const refresh = (doc: IncidentDetail) => qc.setQueryData(['incident', id], doc)
   const addEvent = useMutation({ mutationFn: (body: Parameters<typeof api.addIncidentEvent>[1]) => api.addIncidentEvent(id, body), onSuccess: refresh })
   const rerank = useMutation({ mutationFn: () => api.rerankIncident(id), onSuccess: refresh })
+  // Exporting freezes a revision server-side, then opens the printable pack in its own tab so the
+  // case file stays where the officer left it. The incident is refetched because the export writes
+  // a line into its timeline.
+  const exportReport = useMutation({
+    mutationFn: () => api.createReport(id),
+    onSuccess: (r) => {
+      void qc.invalidateQueries({ queryKey: ['incident', id] })
+      void qc.invalidateQueries({ queryKey: ['reports'] })
+      window.open(`/app/reports/${r.id}/print`, '_blank', 'noopener')
+    },
+  })
   const onNote = () => { const text = window.prompt('Note for the case file'); if (text?.trim()) addEvent.mutate({ type: 'note', text: text.trim() }) }
   const onInspect = () => { if (!sel) return; if (window.confirm(`Mark ${sel.name} for inspection? Status becomes "inspection requested".`)) addEvent.mutate({ type: 'inspection', mmsi: sel.mmsi, text: `${sel.name} (MMSI ${sel.mmsi}) marked for inspection, score ${sel.score}/100` }) }
   useEffect(() => { if (d && !d.ranking.some((r) => r.mmsi === selectedMmsi)) selectMmsi(d.ranking[0]?.mmsi ?? null) }, [d, selectedMmsi, selectMmsi])
@@ -68,7 +79,10 @@ export default function Investigation() {
           <Button variant="ghost" onClick={onNote} disabled={addEvent.isPending}><MessageSquarePlus className="size-4" />Add note</Button>
           <Button variant="ghost" onClick={onInspect} disabled={addEvent.isPending || !sel || selTagged || d.status === 'closed'} title={selTagged ? 'This vessel is already tagged for inspection' : undefined}><ClipboardCheck className="size-4" />{selTagged ? 'Tagged' : 'Mark for inspection'}</Button>
           <Button variant="ghost" onClick={() => rerank.mutate()} disabled={rerank.isPending} title="Recompute drift and ranking with the latest AIS data"><RefreshCw className={`size-4 ${rerank.isPending ? 'animate-spin' : ''}`} />Re-rank</Button>
-          <Button disabled title="PDF export arrives with the report page"><FileDown className="size-4" />Export PDF</Button>
+          <Button onClick={() => exportReport.mutate()} disabled={exportReport.isPending}
+            title="Freeze the current numbers as a numbered revision and open the printable evidence pack">
+            <FileDown className="size-4" />{exportReport.isPending ? 'Preparing…' : 'Export PDF'}
+          </Button>
         </>} />
 
       <AnimatePresence mode="wait" initial={false}>
