@@ -10,10 +10,17 @@ export default function Vessels() {
   const [search, setSearch] = useState('')
   const [type, setType] = useState('all')
   const rows = useMemo(() => (q.data ?? []).filter((v) => (type === 'all' || v.type_group === type) && (v.name.toLowerCase().includes(search.toLowerCase()) || v.mmsi.includes(search))), [q.data, search, type])
+  // Real recorded AIS and seeded scenario ships sit in the same table, so the row has to say which
+  // it is. Never let a demo fixture pass for a live report.
+  const live = (q.data ?? []).filter((v) => v.source === 'live').length
+  const total = q.data?.length ?? 0
 
   return (
     <div className="p-6">
-      <PageHeader eyebrow="Live AIS" title="Vessels" description="Latest position for every vessel inside the watch zones. Refreshes every 30 s."
+      <PageHeader eyebrow="Live AIS" title="Vessels"
+        description={total === 0
+          ? 'Latest position for every vessel inside the watch zones. Refreshes every 30 s.'
+          : `${total} vessels inside the watch zones, ${live} of them recorded live from AIS and ${total - live} from the seeded demo scenario. Refreshes every 30 s.`}
         actions={<>
           <label className="relative"><Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name or MMSI" className="w-56 rounded-md border border-line bg-surface py-1.5 pl-8 pr-3 text-sm" /></label>
@@ -28,7 +35,12 @@ export default function Vessels() {
           <tbody>
             {rows.map((v) => (
               <tr key={v.mmsi}>
-                <td className="font-semibold">{v.name}</td>
+                <td>
+                  <span className="font-semibold">{v.name}</span>
+                  {v.source === 'live'
+                    ? <span className="ml-2 rounded border border-ok/40 bg-ok-soft px-1 py-px font-mono text-[10px] uppercase tracking-wide text-ok" title="Real AIS report recorded from AISStream">live</span>
+                    : <span className="ml-2 rounded border border-line bg-surface-2 px-1 py-px font-mono text-[10px] uppercase tracking-wide text-ink-3" title="Seeded demo scenario, not a real AIS report">demo</span>}
+                </td>
                 <td className="font-mono text-xs">{v.mmsi}</td>
                 <td className="font-mono text-xs text-ink-2">{v.imo ?? '—'}</td>
                 <td>{TYPE_LABEL[v.type_group]}</td>

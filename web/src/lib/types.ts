@@ -171,6 +171,8 @@ export interface Vessel {
   cog_deg: number
   position: LonLat
   last_seen: string
+  /** "live" is a real AIS report recorded from AISStream. Absent means seeded scenario data. */
+  source?: 'live' | 'scenario' | null
 }
 
 export interface DetectSample {

@@ -55,6 +55,10 @@ python -m scripts.seed_db                        # admin@sagarnetra.in / Admin@1
 uvicorn app.main:app --reload --port 8000        # backend on http://localhost:8000, docs at /docs
 pytest -q && ruff check .                        # tests run on in-memory Mongo, no server needed
 docker compose up -d                             # local MongoDB on 27017 (or: brew services start mongodb-community)
+
+# live AIS recorder (real vessels). Free key from https://aisstream.io -> AISSTREAM_API_KEY in .env
+python -m scripts.ais_collector --dry-run        # prove data flows: counts messages, writes nothing
+caffeinate -i nohup python -m scripts.ais_collector > ais.log 2>&1 &   # record for real
 ```
 
 ## Working with Claude on this repo
