@@ -36,17 +36,20 @@ from app.services import drift, incidents, reports, weather  # noqa: E402
 from app.services.ranking import LOOKBACK_H  # noqa: E402
 from app.services.users import create_user, find_by_email  # noqa: E402
 from scripts.demo_scenario import (  # noqa: E402
+    EU_ZONE_IDS,
     INCIDENTS,
     INDIAN_ZONE_IDS,
-    LIVE_ZONE_IDS,
     REPORTS,
     SAMPLES,
+    TRAFFIC_VESSELS,
     ZONES,
     build_positions,
     vessel_docs,
 )
 
-STATIC_COLLECTIONS = {"watch_zones": ZONES, "incidents": INCIDENTS, "samples": SAMPLES, "reports": REPORTS}
+# `traffic` is a seeding instruction, not sector data, so it is dropped before the zone is stored.
+WATCH_ZONES = [{k: v for k, v in z.items() if k != "traffic"} for z in ZONES]
+STATIC_COLLECTIONS = {"watch_zones": WATCH_ZONES, "incidents": INCIDENTS, "samples": SAMPLES, "reports": REPORTS}
 DEMO_SAMPLE = "guj-01"
 
 
@@ -72,13 +75,14 @@ async def seed_accounts(db) -> dict:
             "Lt. A. Menon",
             os.getenv("SEED_OFFICER_PASSWORD", "Officer@123"),
             "officer",
-            "ICG Region West, Porbandar",
+            "ICG Maritime Surveillance, Porbandar",
             "North-West",
             INDIAN_ZONE_IDS,
         ),
-        # A second officer whose sector is the one zone with real AIS receiver coverage, so the
-        # demo can show live traffic and the reconstructed Indian case side by side without ever
-        # mixing them: each officer sees only their own zones.
+        # A second officer holding the Dover Strait, the European sector with dense AIS receiver
+        # coverage, so the demo can show heavy live traffic beside the reconstructed Indian case
+        # without ever mixing them: each officer sees only their own zones. Note that Chennai is
+        # live too and stays Indian — see EU_ZONE_IDS in demo_scenario.
         (
             "officer.eu@sagarnetra.in",
             "Lt. Cdr. K. Nair",
@@ -86,7 +90,7 @@ async def seed_accounts(db) -> dict:
             "officer",
             "Bonn Agreement liaison, North Sea",
             "Europe",
-            LIVE_ZONE_IDS,
+            EU_ZONE_IDS,
         ),
     ]
     officer = None
@@ -149,6 +153,15 @@ async def seed_demo_incident(db, officer: dict) -> None:
     await upsert(db, "ais_positions", positions)
     await upsert(db, "vessels", vessels)
     print(f"demo: scenario vessels filed under {zone_id}")
+
+    # Background traffic for every other Indian sector. Replaced wholesale each run so a changed
+    # population never leaves last run's ships behind, and never touches source:"live" — the Dover
+    # Strait's real recording is the one dataset the seed must not overwrite.
+    await db.vessels.delete_many({"source": "scenario", "_id": {"$nin": [v["_id"] for v in vessels]}})
+    await upsert(db, "vessels", TRAFFIC_VESSELS)
+    seeded_sectors = len({v["zone_id"] for v in TRAFFIC_VESSELS})
+    print(f"sectors: {len(TRAFFIC_VESSELS)} background vessels across {seeded_sectors} sectors "
+          f"({len(INDIAN_ZONE_IDS)} Indian sectors total; live ones are left to the recorder)")
 
     # the detection an officer would have confirmed, then the incident exactly as the API creates it
     await db.incidents.delete_many({"is_demo": True, "_id": {"$nin": [i["_id"] for i in INCIDENTS]}})
@@ -227,9 +240,14 @@ async def seed_pending_detections(db) -> None:
     """Give each sector a review queue: run the detector on its sample tile and store an UNVERIFIED detection.
     This is what the officer works through in the command view. Synthetic tiles until real Sentinel-1 lands."""
     det = Detector()
-    plan = [("mum-02", "z-mum"), ("che-03", "z-che"), ("kut-04", "z-guj")]  # kut-04 is a clean tile: review + dismiss
-    for sample_id, zone_id in plan:
+    # kut-04 is a clean tile: it exists so the officer can review one and dismiss it.
+    # The sector comes from the tile's own footprint, never a hardcoded pair — that list said
+    # kut-04 was in z-guj, and when the Gulf of Kutch became its own sector the review silently
+    # stayed filed under the sector next door.
+    plan = ["mum-02", "che-03", "kut-04"]
+    for sample_id in plan:
         sample = next((s for s in SAMPLES if s["_id"] == sample_id), None)
+        zone_id = sample.get("zone_id") if sample else None
         p = SAMPLES_DIR / f"{sample_id}.png"
         if sample is None or not p.exists():
             continue

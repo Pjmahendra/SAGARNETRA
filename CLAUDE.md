@@ -17,6 +17,7 @@ One pipeline, end to end: Sentinel-1 SAR scene → U-Net detects the slick → g
 - Done: 5-model training pipeline (`ml/{models,dataset,train,export}.py` + `notebooks/train_colab.ipynb`, deps in `ml/requirements-train.txt`): one shared harness trains all five candidates (unet_scratch, unet_resnet34, unetpp_resnet34, deeplabv3p_resnet50, fpn_effb3), scores per-class IoU/mIoU/params/CPU-ms on the Krestenitis test split, writes `ml/metrics.json`, exports the winner to `weights/<name>.onnx` + sidecar. Push-button once the dataset lands; see DECISIONS.md 2026-09-08. Training itself still needs the Krestenitis dataset.
 - Done: evidence-pack reports (`backend/app/{services,routers}/reports.py`, `web/src/pages/{Reports,ReportPrint}.tsx`): immutable, revisioned incident snapshots with chain-of-custody hashes, zone-scoped like everything else. "Export PDF" on an investigation freezes a revision, writes it into the case timeline and the audit log, and opens an A4 print view (browser print dialog → Save as PDF, no server-side PDF library).
 - Done: live AIS recorder (`backend/scripts/ais_collector.py`) + two officers, one per sector — see DECISIONS 2026-09-08.
+- Done: national sector grid (`_SECTOR_TABLE` in `backend/scripts/demo_scenario.py`): 16 Indian sectors across the five real ICG regions plus the Dover Strait, with deterministic scenario traffic sized to each sector's real busyness. `python -m scripts.check_sectors` proves no two overlap and that every incident, tile and vessel files inside the sector it claims. Chennai–Ennore and Dover carry real live AIS and are never seeded.
 - Next: run the training (needs Krestenitis dataset, deferred to a better laptop), real Sentinel-1 tiles (needs CDSE token), admin create-user form.
 
 ## Layout
@@ -60,10 +61,10 @@ docker compose up -d                             # local MongoDB on 27017 (or: b
 
 # live AIS recorder (real vessels). Free key from https://aisstream.io -> AISSTREAM_API_KEY in .env
 python -m scripts.ais_collector --dry-run --seconds 60          # prove data flows, write nothing
-# NOTE: AISStream has ~zero receiver coverage in Indian waters (see DECISIONS 2026-09-08).
-# Use --bbox S,W,N,E to record water that has receivers, e.g. the North Sea / English Channel:
-# The Dover Strait zone (z-nsc, officer.eu@sagarnetra.in) is the one sector with coverage;
-# the default subscribes to every watch zone, so no --bbox is needed for the demo:
+# Two sectors have real receiver coverage: Dover Strait (z-nsc, dense) and Chennai–Ennore
+# (z-che, ~17 ships in a 2 h window — real INDIAN AIS, see DECISIONS 2026-09-08 correction).
+# Neither is ever seeded with scenario traffic. The default subscribes to all 17 watch zones,
+# so no --bbox is needed; use --bbox S,W,N,E only to record water outside the sectors.
 caffeinate -i nohup python -m scripts.ais_collector > ais.log 2>&1 &
 # Vessels age out of a sector 2 h after their last report, so keep it running during the demo.
 # undo a recording:  db.vessels.deleteMany({source:"live"}); db.ais_positions.deleteMany({source:"live"})
