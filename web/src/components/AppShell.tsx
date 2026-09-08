@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'motion/react'
 import { ChevronDown, FileText, LogOut, ScanSearch, ShieldCheck, Ship, Siren } from 'lucide-react'
@@ -47,6 +48,44 @@ function Dot({ ok, label, detail }: { ok: boolean | null; label: string; detail:
   )
 }
 
+/**
+ * What the *selected sector* is running on, shown right beside the sector dropdown.
+ *
+ * The AIS light used to be platform-wide: one green dot meaning "the recorder is alive somewhere",
+ * sitting next to a dropdown of seventeen sectors. It therefore read as green for every sector,
+ * claiming fifteen live feeds that do not exist. Only two sectors have real AIS receiver coverage —
+ * Chennai–Ennore and the Dover Strait — and which one you are looking at is the single most
+ * important caveat on the screen, so it is stated per sector and never inferred.
+ *
+ * Three states, and the amber one is not a fault: a reconstructed sector is working as designed.
+ *   live      real recorded AIS, and the recorder is currently up
+ *   no feed   this sector's ships are real, but nothing has been heard recently — a real fault
+ *   scenario  this sector's ships are the seeded reconstruction. Amber, because it is a caveat.
+ */
+function FeedChip({ feed, recorderUp }: { feed?: string; recorderUp: boolean | null }) {
+  if (!feed) return <Dot ok={null} label="feed" detail="checking" />
+  if (feed !== 'live') {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-warn"
+        title="This sector's vessels are the seeded demo scenario, not live AIS. Only Chennai–Ennore and the Dover Strait carry a real feed."
+      >
+        <span className="size-1.5 rounded-full bg-warn" />
+        scenario
+      </span>
+    )
+  }
+  return (
+    <Dot
+      ok={recorderUp}
+      label={recorderUp ? 'ais live' : 'ais down'}
+      detail={recorderUp
+        ? 'real AIS recorded from AISStream in this sector'
+        : 'this sector runs on real AIS, but no report has arrived recently'}
+    />
+  )
+}
+
 export default function AppShell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -55,6 +94,15 @@ export default function AppShell() {
   const health = useQuery({ queryKey: ['health'], queryFn: api.health, refetchInterval: 30_000 })
   const overview = useQuery({ queryKey: ['overview'], queryFn: api.overview })
   const h = health.data
+  const zones = overview.data?.zones
+  const zone = zones?.find((z) => z.id === zoneId)
+
+  // An officer's sector list is now their own, so the stored selection can be a sector they do not
+  // hold — a stale value from a previous login, or the default. Fall back to their first sector so
+  // the dropdown and the feed chip never describe water this account cannot see.
+  useEffect(() => {
+    if (zones?.length && !zones.some((z) => z.id === zoneId)) setZone(zones[0].id)
+  }, [zones, zoneId, setZone])
 
   const onLogout = () => { logout(); void navigate('/login', { replace: true }) }
 
@@ -105,7 +153,7 @@ export default function AppShell() {
             <div className="hidden items-center gap-3 lg:flex">
               <Dot ok={h ? h.model !== 'missing' : null} label="model" detail={h?.model ?? 'checking'} />
               <Dot ok={h ? h.database !== 'disconnected' : null} label="db" detail={h?.database ?? 'checking'} />
-              <Dot ok={h ? h.ais_collector !== 'stopped' : null} label="ais" detail={h?.ais_collector ?? 'checking'} />
+              <FeedChip feed={zone?.feed} recorderUp={h ? h.ais_collector !== 'stopped' : null} />
             </div>
 
             {MOCK_MODE && (
@@ -126,8 +174,10 @@ export default function AppShell() {
                 onChange={(e) => setZone(e.target.value)}
                 className="appearance-none rounded-md border border-line bg-surface-2 py-1.5 pl-3 pr-7 font-mono text-xs text-ink"
               >
-                {(overview.data?.zones ?? [{ id: zoneId, name: 'Loading…' }]).map((z) => (
-                  <option key={z.id} value={z.id}>{z.name}</option>
+                {/* The option says it too, so the caveat travels with the sector name even while
+                    the dropdown is open and the chip beside it is covered. */}
+                {(zones ?? [{ id: zoneId, name: 'Loading…', feed: undefined }]).map((z) => (
+                  <option key={z.id} value={z.id}>{z.name}{z.feed === 'live' ? '  · live AIS' : ''}</option>
                 ))}
               </select>
               <ChevronDown className="pointer-events-none absolute right-2 size-3.5 text-ink-3" aria-hidden />

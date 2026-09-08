@@ -93,7 +93,38 @@ async def compute_pipeline(
     statics = {v["mmsi"]: v async for v in db.vessels.find({"mmsi": {"$in": list(grouped)}})}
     history = await _history(db, list(grouped))
     ranking = rank(grouped, statics, zones, acquired_at, heading_deg, history)
-    return {"origin_zones": zones, "drift_inputs": inputs, "ranking": ranking, "candidates_considered": len(grouped)}
+    return {
+        "origin_zones": zones,
+        "drift_inputs": inputs,
+        "ranking": ranking,
+        "candidates_considered": len(grouped),
+        "ais_source": await _ais_source(db, list(grouped), start, acquired_at),
+    }
+
+
+async def _ais_source(db: AsyncIOMotorDatabase, mmsis: list[str], start: datetime, end: datetime) -> str:
+    """Whether this case was ranked against real recorded AIS or the seeded reconstruction.
+
+    Recorded on the incident, and frozen into the evidence pack, because the pack states it in
+    words. A Dover case is ranked against hundreds of genuine hulls while a Gujarat case is ranked
+    against a written scenario, and a document that gets that backwards is worse than one that says
+    nothing — so it is derived from the reports actually used, never assumed from the sector.
+    "mixed" should not happen (a sector is seeded or live, not both) but is reported honestly.
+    """
+    if not mmsis:
+        return "none"
+    try:
+        srcs = set(await db.ais_positions.distinct(
+            "source", {"mmsi": {"$in": mmsis}, "ts": {"$gte": start, "$lte": end}}
+        ))
+    except Exception:
+        return "unknown"
+    srcs.discard(None)
+    if srcs == {"live"}:
+        return "live"
+    if not srcs or srcs == {"scenario"}:
+        return "scenario"
+    return "mixed" if "live" in srcs else "scenario"
 
 
 async def create_incident(db: AsyncIOMotorDatabase, detection: dict, user: dict) -> dict:
@@ -123,6 +154,9 @@ async def create_incident(db: AsyncIOMotorDatabase, detection: dict, user: dict)
         "assigned_to": user["name"],
         "assigned_to_id": user["_id"],
         "is_demo": bool(src.get("kind") == "sample"),
+        # What the ranking was actually computed against. Distinct from `is_demo`, which is about
+        # the tile: a Dover case has a synthetic tile and a completely real vessel history.
+        "ais_source": result["ais_source"],
         "scene": src.get("scene") or src.get("filename") or "uploaded tile",
         "polygon": detection["geometry"]["coordinates"][0],
         "heading_deg": detection.get("heading_deg", 0),

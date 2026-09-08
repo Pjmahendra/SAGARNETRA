@@ -17,6 +17,8 @@ One pipeline, end to end: Sentinel-1 SAR scene → U-Net detects the slick → g
 - Done: 5-model training pipeline (`ml/{models,dataset,train,export}.py` + `notebooks/train_colab.ipynb`, deps in `ml/requirements-train.txt`): one shared harness trains all five candidates (unet_scratch, unet_resnet34, unetpp_resnet34, deeplabv3p_resnet50, fpn_effb3), scores per-class IoU/mIoU/params/CPU-ms on the Krestenitis test split, writes `ml/metrics.json`, exports the winner to `weights/<name>.onnx` + sidecar. Push-button once the dataset lands; see DECISIONS.md 2026-09-08. Training itself still needs the Krestenitis dataset.
 - Done: evidence-pack reports (`backend/app/{services,routers}/reports.py`, `web/src/pages/{Reports,ReportPrint}.tsx`): immutable, revisioned incident snapshots with chain-of-custody hashes, zone-scoped like everything else. "Export PDF" on an investigation freezes a revision, writes it into the case timeline and the audit log, and opens an A4 print view (browser print dialog → Save as PDF, no server-side PDF library).
 - Done: live AIS recorder (`backend/scripts/ais_collector.py`) + two officers, one per sector — see DECISIONS 2026-09-08.
+- Done: a Dover Strait case ranked against **real** recorded AIS (`seed_dover_case` in `backend/scripts/seed_db.py`): ~120 genuine vessels considered, 7 ranked with real MMSIs and tracks. Its tile times are pinned to the live recording at seed time, and every pack states which of its inputs are real via `ais_source`.
+- Done: national sector grid (`_SECTOR_TABLE` in `backend/scripts/demo_scenario.py`): 16 Indian sectors across the five real ICG regions plus the Dover Strait, with deterministic scenario traffic sized to each sector's real busyness. `python -m scripts.check_sectors` proves no two overlap and that every incident, tile and vessel files inside the sector it claims. Chennai–Ennore and Dover carry real live AIS and are never seeded.
 - Next: run the training (needs Krestenitis dataset, deferred to a better laptop), real Sentinel-1 tiles (needs CDSE token), admin create-user form.
 
 ## Layout
@@ -53,17 +55,21 @@ cd web && npm install && npm run dev            # frontend on http://localhost:5
 cd backend && python3.13 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
 cp .env.example .env                             # then set JWT_SECRET
-python -m scripts.seed_db                        # admin@sagarnetra.in / Admin@123, officer@sagarnetra.in / Officer@123
+python -m scripts.seed_db                        # admin@sagarnetra.in / Admin@123
+# Two officers, split strictly by DATA SOURCE so neither can ever show a mixture:
+#   officer@sagarnetra.in     / Officer@123  -> the 15 scenario sectors (our reconstruction)
+#   officer.ais@sagarnetra.in / Officer@123  -> the 2 live-AIS sectors (Chennai-Ennore, Dover)
+# (officer.ais was officer.eu; the seed renames it in place and keeps the password.)
 uvicorn app.main:app --reload --port 8000        # backend on http://localhost:8000, docs at /docs
 pytest -q && ruff check .                        # tests run on in-memory Mongo, no server needed
 docker compose up -d                             # local MongoDB on 27017 (or: brew services start mongodb-community)
 
 # live AIS recorder (real vessels). Free key from https://aisstream.io -> AISSTREAM_API_KEY in .env
 python -m scripts.ais_collector --dry-run --seconds 60          # prove data flows, write nothing
-# NOTE: AISStream has ~zero receiver coverage in Indian waters (see DECISIONS 2026-09-08).
-# Use --bbox S,W,N,E to record water that has receivers, e.g. the North Sea / English Channel:
-# The Dover Strait zone (z-nsc, officer.eu@sagarnetra.in) is the one sector with coverage;
-# the default subscribes to every watch zone, so no --bbox is needed for the demo:
+# Two sectors have real receiver coverage: Dover Strait (z-nsc, dense) and Chennai–Ennore
+# (z-che, ~17 ships in a 2 h window — real INDIAN AIS, see DECISIONS 2026-09-08 correction).
+# Neither is ever seeded with scenario traffic. The default subscribes to all 17 watch zones,
+# so no --bbox is needed; use --bbox S,W,N,E only to record water outside the sectors.
 caffeinate -i nohup python -m scripts.ais_collector > ais.log 2>&1 &
 # Vessels age out of a sector 2 h after their last report, so keep it running during the demo.
 # undo a recording:  db.vessels.deleteMany({source:"live"}); db.ais_positions.deleteMany({source:"live"})

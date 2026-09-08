@@ -18,7 +18,17 @@ SPECS = {
     "mum-02": {"spill": (0.45, 0.55, 60, 22, 1.9), "ships": [(0.2, 0.2), (0.8, 0.7)], "bbox": [72.50, 18.75, 72.75, 18.95]},
     "che-03": {"spill": (0.5, 0.45, 45, 18, 1.3), "ships": [], "bbox": [80.30, 13.10, 80.55, 13.30]},
     "kut-04": {"spill": None, "ships": [(0.3, 0.6)], "bbox": [68.90, 22.40, 69.15, 22.60]},
+    # Dover Strait. The one sector with a deep live AIS recording, so a slick here can be
+    # backtracked against several hundred *real* vessel tracks rather than a written scenario —
+    # which is why it gets a tile at all. Placed mid-strait, across the northbound lane.
+    "dov-05": {"spill": (0.48, 0.52, 105, 26, 0.55), "ships": [(0.7, 0.28), (0.25, 0.75)],
+               "bbox": [1.40, 50.90, 1.65, 51.10]},
+    # A clean tile off the Belgian approach, so the Dover queue has something to review and dismiss.
+    "dov-06": {"spill": None, "ships": [(0.4, 0.35), (0.72, 0.62)], "bbox": [1.90, 51.20, 2.15, 51.40]},
 }
+# NOTE ON ORDER: the seed for each tile is 100 + its index here, so appending keeps every existing
+# tile byte-identical. Never insert in the middle — it silently regenerates tiles whose SHA-256 is
+# already recorded in an exported evidence pack's chain of custody.
 
 
 def make(seed: int, spec: dict, size=(512, 352)) -> Image.Image:

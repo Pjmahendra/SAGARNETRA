@@ -49,6 +49,33 @@ async def vessels_now(db: AsyncIOMotorDatabase) -> dict[str, int]:
         return out_counts
 
 
+async def feed_by_zone(db: AsyncIOMotorDatabase) -> dict[str, str]:
+    """Where each sector's vessels come from: "live", "scenario", or "none".
+
+    Only two sectors on the platform carry a real AIS feed — Chennai–Ennore and the Dover Strait,
+    the two with AISStream receiver coverage. Every other sector's ships are the reconstruction we
+    generated. That distinction is the most important thing on the screen and it was invisible: the
+    header's AIS light is platform-wide, so it went green next to *every* sector in the dropdown
+    and implied fifteen live feeds that do not exist.
+
+    Derived from the vessels themselves rather than a hardcoded list, for the same reason
+    `vessels_now` is counted: the moment a sector starts receiving real AIS, the console should say
+    so without anybody editing a constant.
+    """
+    pipeline = [
+        {"$match": {"zone_id": {"$ne": None}}},
+        {"$group": {"_id": {"z": "$zone_id", "s": "$source"}, "n": {"$sum": 1}}},
+    ]
+    tally: dict[str, set[str]] = {}
+    try:
+        async for d in db.vessels.aggregate(pipeline):
+            tally.setdefault(d["_id"]["z"], set()).add(d["_id"]["s"] or "scenario")
+    except Exception as e:  # mongomock lacks parts of the pipeline; never break a page over a badge
+        log.warning("feed_by_zone aggregate unavailable (%s); reporting no feed", e)
+        return {}
+    return {z: ("live" if "live" in s else "scenario") for z, s in tally.items()}
+
+
 def zone_filter(user: dict) -> dict:
     """Mongo filter restricting a query to the officer's own sectors.
 
@@ -112,6 +139,7 @@ def _detection_summary(d: dict) -> dict:
 async def list_sectors(db: AsyncIOMotorDatabase, user: dict | None = None) -> list[dict]:
     """The officer's own sectors. `user=None` means unscoped, which only admin paths should use."""
     counts = await vessels_now(db)
+    feeds = await feed_by_zone(db)
     scope = zone_filter(user) if user else {}
     zone_scope = {"_id": scope["zone_id"]} if scope else {}
     sectors = []
@@ -127,6 +155,7 @@ async def list_sectors(db: AsyncIOMotorDatabase, user: dict | None = None) -> li
             "open_incidents": await db.incidents.count_documents({"zone_id": z["_id"], "status": {"$ne": "closed"}}),
             "last_scene_at": z.get("last_scene_at"),
             "vessels_now": counts.get(z["_id"], 0),
+            "feed": feeds.get(z["_id"], "none"),
         })
     return sectors
 
@@ -148,8 +177,10 @@ async def sector_detail(db: AsyncIOMotorDatabase, zone_id: str) -> dict | None:
         .sort("detected_at", -1)
         .to_list(100)
     )
+    feeds = await feed_by_zone(db)
     return {
-        "sector": {"id": z["_id"], "name": z["name"], "region": z.get("region"), "center": center, "bbox": bbox},
+        "sector": {"id": z["_id"], "name": z["name"], "region": z.get("region"), "center": center, "bbox": bbox,
+                   "feed": feeds.get(zone_id, "none")},
         "detections": [_detection_summary(d) for d in dets],
         "incidents": [out(i) for i in incs],
     }

@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import hashlib  # noqa: E402
-from datetime import timedelta  # noqa: E402
+from datetime import UTC, datetime, timedelta  # noqa: E402
 
 from ml import SAMPLES_DIR  # noqa: E402
 from ml.infer import Detector  # noqa: E402
@@ -36,17 +36,22 @@ from app.services import drift, incidents, reports, weather  # noqa: E402
 from app.services.ranking import LOOKBACK_H  # noqa: E402
 from app.services.users import create_user, find_by_email  # noqa: E402
 from scripts.demo_scenario import (  # noqa: E402
+    DOVER_SAMPLE,
     INCIDENTS,
-    INDIAN_ZONE_IDS,
+    LIVE_SAMPLE_IDS,
     LIVE_ZONE_IDS,
     REPORTS,
     SAMPLES,
+    SCENARIO_ZONE_IDS,
+    TRAFFIC_VESSELS,
     ZONES,
     build_positions,
     vessel_docs,
 )
 
-STATIC_COLLECTIONS = {"watch_zones": ZONES, "incidents": INCIDENTS, "samples": SAMPLES, "reports": REPORTS}
+# `traffic` is a seeding instruction, not sector data, so it is dropped before the zone is stored.
+WATCH_ZONES = [{k: v for k, v in z.items() if k != "traffic"} for z in ZONES]
+STATIC_COLLECTIONS = {"watch_zones": WATCH_ZONES, "incidents": INCIDENTS, "samples": SAMPLES, "reports": REPORTS}
 DEMO_SAMPLE = "guj-01"
 
 
@@ -56,7 +61,26 @@ async def upsert(db, name: str, docs: list[dict]) -> None:
     print(f"{name}: {len(docs)} documents")
 
 
-async def seed_accounts(db) -> dict:
+#: Accounts renamed since an earlier seed, {old email: new email}. Renamed rather than recreated so
+#: the operator keeps their password and their audit history; a second account with the same job
+#: would leave a stale one holding sectors it no longer owns.
+RENAMED = {"officer.eu@sagarnetra.in": "officer.ais@sagarnetra.in"}
+
+
+async def migrate_emails(db) -> None:
+    for old, new in RENAMED.items():
+        if await find_by_email(db, new):
+            continue
+        doc = await find_by_email(db, old)
+        if doc:
+            await db.users.update_one({"_id": doc["_id"]}, {"$set": {"email": new}})
+            print(f"users: renamed {old} -> {new} (password unchanged)")
+
+
+async def seed_accounts(db) -> tuple[dict, dict]:
+    """Returns (scenario officer, live-AIS officer). Both are needed: each seeds its own case,
+    and a case must be filed by the officer who actually owns that sector."""
+    await migrate_emails(db)
     accounts = [
         (
             "admin@sagarnetra.in",
@@ -72,34 +96,42 @@ async def seed_accounts(db) -> dict:
             "Lt. A. Menon",
             os.getenv("SEED_OFFICER_PASSWORD", "Officer@123"),
             "officer",
-            "ICG Region West, Porbandar",
+            "ICG Maritime Surveillance, Porbandar",
             "North-West",
-            INDIAN_ZONE_IDS,
+            SCENARIO_ZONE_IDS,
         ),
-        # A second officer whose sector is the one zone with real AIS receiver coverage, so the
-        # demo can show live traffic and the reconstructed Indian case side by side without ever
-        # mixing them: each officer sees only their own zones.
+        # The live-feed watch: the only two sectors with real AIS receiver coverage, Chennai–Ennore
+        # and the Dover Strait. Split by data source rather than geography, so this account shows
+        # nothing but real recorded ships and the account above shows nothing but the
+        # reconstruction. Neither can ever display a mixture, which is the whole point.
+        # `region` is left unset on purpose: this officer's remit is a feed, not a coastline, and
+        # inventing a region label would be the one dishonest field on the account.
         (
-            "officer.eu@sagarnetra.in",
+            "officer.ais@sagarnetra.in",
             "Lt. Cdr. K. Nair",
             os.getenv("SEED_OFFICER_PASSWORD", "Officer@123"),
             "officer",
-            "Bonn Agreement liaison, North Sea",
-            "Europe",
+            "Live AIS watch — Chennai–Ennore & Dover Strait",
+            None,
             LIVE_ZONE_IDS,
         ),
     ]
-    officer = None
+    officer = ais_officer = None
     for email, name, pw, role, org, region, zones in accounts:
         doc = await find_by_email(db, email)
         if doc:
-            # Passwords and activity are the operator's, so they are never touched. Sector
-            # assignment is this script's to own: now that the endpoints actually scope by zone,
-            # an account left on a stale zone list silently loses part of its sector.
-            if doc.get("zone_ids") != zones or doc.get("region") != region:
-                await db.users.update_one({"_id": doc["_id"]}, {"$set": {"zone_ids": zones, "region": region}})
+            # Passwords and activity are the operator's, so they are never touched. Everything
+            # that describes the account's *job* is this script's to own: sectors, because a stale
+            # zone list silently hides part of an officer's water, and name/org/region, because
+            # those are what the console prints. Reconciling only the zone list left the live-AIS
+            # officer still labelled "Bonn Agreement liaison, North Sea" after it took on an
+            # Indian sector — the account did the right thing and described itself wrongly.
+            want = {"zone_ids": zones, "region": region, "name": name, "org": org}
+            drift = {k: v for k, v in want.items() if doc.get(k) != v}
+            if drift:
+                await db.users.update_one({"_id": doc["_id"]}, {"$set": drift})
                 doc = await find_by_email(db, email)
-                print(f"users: {email} exists, sector updated to {zones or 'all zones'}")
+                print(f"users: {email} exists, updated {', '.join(sorted(drift))}")
             else:
                 print(f"users: {email} exists, left unchanged")
         else:
@@ -120,7 +152,9 @@ async def seed_accounts(db) -> dict:
         # the case to the North Sea liaison as soon as a second officer was added.
         if email == "officer@sagarnetra.in":
             officer = doc
-    return officer
+        if email == "officer.ais@sagarnetra.in":
+            ais_officer = doc
+    return officer, ais_officer
 
 
 async def seed_demo_incident(db, officer: dict) -> None:
@@ -149,6 +183,15 @@ async def seed_demo_incident(db, officer: dict) -> None:
     await upsert(db, "ais_positions", positions)
     await upsert(db, "vessels", vessels)
     print(f"demo: scenario vessels filed under {zone_id}")
+
+    # Background traffic for every other Indian sector. Replaced wholesale each run so a changed
+    # population never leaves last run's ships behind, and never touches source:"live" — the Dover
+    # Strait's real recording is the one dataset the seed must not overwrite.
+    await db.vessels.delete_many({"source": "scenario", "_id": {"$nin": [v["_id"] for v in vessels]}})
+    await upsert(db, "vessels", TRAFFIC_VESSELS)
+    seeded_sectors = len({v["zone_id"] for v in TRAFFIC_VESSELS})
+    print(f"sectors: {len(TRAFFIC_VESSELS)} background vessels across {seeded_sectors} sectors "
+          f"({len(SCENARIO_ZONE_IDS)} scenario sectors; the {len(LIVE_ZONE_IDS)} live ones are the recorder's)")
 
     # the detection an officer would have confirmed, then the incident exactly as the API creates it
     await db.incidents.delete_many({"is_demo": True, "_id": {"$nin": [i["_id"] for i in INCIDENTS]}})
@@ -223,13 +266,134 @@ async def seed_demo_incident(db, officer: dict) -> None:
     print(f"demo: evidence pack {report['_id']} (revision 1) exported for {inc['code']}")
 
 
+async def pin_live_sample_times(db) -> None:
+    """Give the live sectors' tiles an acquisition time inside the actual AIS recording.
+
+    Their `acquired_at` is None in the source, deliberately. A Dover tile only earns its place
+    because the case built on it can be backtracked against real recorded tracks, and the lookback
+    is 30 hours from acquisition — so a hardcoded date silently falls outside whatever the recorder
+    happened to capture and the case ranks nobody. Pinned at seed time to the newest live report,
+    which is the one timestamp guaranteed to have data behind it.
+    """
+    window = await live_window(db)
+    if window is None:
+        return
+    _, newest = window
+    for s in SAMPLES:
+        if s["_id"] in LIVE_SAMPLE_IDS and s.get("acquired_at") is None:
+            s["acquired_at"] = newest
+            await db.samples.update_one({"_id": s["_id"]}, {"$set": {"acquired_at": newest}})
+    print(f"samples: {len(LIVE_SAMPLE_IDS)} live-sector tiles pinned to {newest:%Y-%m-%d %H:%M}Z")
+
+
+async def live_window(db) -> tuple[datetime, datetime] | None:
+    """The span the AIS recorder has actually captured in the live sectors, or None if it never ran."""
+    first = await db.ais_positions.find_one({"source": "live"}, sort=[("ts", 1)])
+    last = await db.ais_positions.find_one({"source": "live"}, sort=[("ts", -1)])
+    if not first or not last:
+        return None
+    return _utc(first["ts"]), _utc(last["ts"])
+
+
+def _utc(t: datetime) -> datetime:
+    return t if t.tzinfo else t.replace(tzinfo=UTC)
+
+
+async def seed_dover_case(db, officer: dict) -> None:
+    """A worked case in the Dover Strait, ranked against **real** recorded AIS.
+
+    This is the strongest thing the platform can show, and it costs nothing to build: the Dover
+    recording holds thousands of position reports from hundreds of genuine vessels, and
+    `incidents.create_incident` does not care where a position came from. So the backtrack runs
+    against ships that were actually in that water, and the ranking names real hulls with real
+    MMSIs and real tracks — no scenario anywhere in the chain except the SAR tile itself, which is
+    synthetic in every sector because no Sentinel-1 scene is bundled yet.
+
+    The acquisition time is pinned to the END of the recording rather than written down, because a
+    fixed date drifts out of the 30-hour lookback the moment the recorder is restarted, and the
+    case would silently rank nobody. Skipped entirely, with a clear message, when nothing has been
+    recorded — a case with no candidates is worse than no case.
+    """
+    window = await live_window(db)
+    if window is None:
+        print("dover: no live AIS recorded, skipping the Dover case (run scripts.ais_collector first)")
+        return
+    _, acq = window
+    sample = next((s for s in SAMPLES if s["_id"] == DOVER_SAMPLE), None)
+    p = SAMPLES_DIR / f"{DOVER_SAMPLE}.png"
+    if sample is None or not p.exists():
+        print(f"dover: {DOVER_SAMPLE} tile missing, skipping")
+        return
+    data = p.read_bytes()
+    tile = load_tile(data, p.name)
+    det = Detector().detect(tile, tuple(sample["bbox"]))
+    if not det.centroid or len(det.polygon) < 4:
+        print("dover: tile produced no slick; skipping")
+        return
+    centroid = list(det.centroid)
+    zone_id = next(z["_id"] for z in ZONES if shape(z["geometry"]).contains(Point(*centroid)))
+
+    await db.detections.delete_many({"source.sample_id": DOVER_SAMPLE, "source.seeded": True})
+    detection = {
+        "_id": f"det-demo-{DOVER_SAMPLE}",
+        "created_at": acq + timedelta(minutes=40),
+        "created_by": officer["_id"],
+        "zone_id": zone_id,
+        "source": {"kind": "sample", "sample_id": DOVER_SAMPLE, "scene": sample["scene"],
+                   "acquired_at": acq, "seeded": True},
+        "engine": det.engine,
+        "model_name": det.model_name,
+        "confidence": det.confidence,
+        "area_km2": det.area_km2,
+        "centroid": centroid,
+        "geometry": {"type": "Polygon", "coordinates": [[list(pt) for pt in det.polygon]]},
+        "heading_deg": det.heading_deg,
+        "elongation": det.elongation,
+        "class_pixels": det.class_pixels,
+        "inference_ms": det.inference_ms,
+        "tile_shape": list(tile.shape),
+        "bbox": list(sample["bbox"]),
+        "tile_sha256": hashlib.sha256(data).hexdigest(),
+        "mask_sha256": hashlib.sha256(det.mask_png.encode()).hexdigest(),
+        "verification": {"decision": "confirmed", "reason": None, "note": "Seeded Dover confirmation",
+                         "by": officer["_id"], "at": acq + timedelta(minutes=55)},
+    }
+    await db.detections.replace_one({"_id": detection["_id"]}, detection, upsert=True)
+    # Drop the previous run's Dover case so reseeding does not stack duplicates in the sector.
+    await db.incidents.delete_many({"zone_id": zone_id, "is_demo": True})
+    inc = await incidents.create_incident(db, detection, officer)
+    top = inc["ranking"][0] if inc["ranking"] else None
+    print(
+        f"dover: {inc['code']} created from REAL AIS — {inc['candidates_considered']} vessels considered, "
+        f"{len(inc['ranking'])} ranked, top = {top['name'] if top else 'none'} "
+        f"({top['score'] if top else '-'}/100, {top['tier'] if top else '-'})"
+    )
+
+    # A filed pack, so the live officer's Reports page is not empty on a fresh seed. Exported
+    # through the same service the endpoint uses, and it carries ais_source="live" — which is what
+    # makes the pack say its vessel history is real rather than printing the scenario boilerplate.
+    await db.reports.delete_many({"incident_id": inc["_id"]})
+    report = reports.build(inc, by_name=officer["name"], by_id=officer["_id"], revision=1)
+    await db.reports.insert_one(report)
+    await db.incidents.update_one(
+        {"_id": inc["_id"]},
+        {"$push": {"events": reports.export_event(1, report["_id"], officer["name"], report["generated_at"])}},
+    )
+    print(f"dover: evidence pack {report['_id']} (revision 1) exported for {inc['code']}")
+
+
 async def seed_pending_detections(db) -> None:
     """Give each sector a review queue: run the detector on its sample tile and store an UNVERIFIED detection.
     This is what the officer works through in the command view. Synthetic tiles until real Sentinel-1 lands."""
     det = Detector()
-    plan = [("mum-02", "z-mum"), ("che-03", "z-che"), ("kut-04", "z-guj")]  # kut-04 is a clean tile: review + dismiss
-    for sample_id, zone_id in plan:
+    # kut-04 is a clean tile: it exists so the officer can review one and dismiss it.
+    # The sector comes from the tile's own footprint, never a hardcoded pair — that list said
+    # kut-04 was in z-guj, and when the Gulf of Kutch became its own sector the review silently
+    # stayed filed under the sector next door.
+    plan = ["mum-02", "che-03", "kut-04", "dov-06"]
+    for sample_id in plan:
         sample = next((s for s in SAMPLES if s["_id"] == sample_id), None)
+        zone_id = sample.get("zone_id") if sample else None
         p = SAMPLES_DIR / f"{sample_id}.png"
         if sample is None or not p.exists():
             continue
@@ -275,8 +439,11 @@ async def seed(reset: bool = False) -> None:
         for name, docs in STATIC_COLLECTIONS.items():
             await upsert(db, name, docs)
         await db.incidents.delete_one({"_id": "inc-041"})  # legacy hand-authored demo incident
-        officer = await seed_accounts(db)
+        officer, ais_officer = await seed_accounts(db)
+        await pin_live_sample_times(db)
         await seed_demo_incident(db, officer)
+        if ais_officer:
+            await seed_dover_case(db, ais_officer)
         await seed_pending_detections(db)
     finally:
         client.close()

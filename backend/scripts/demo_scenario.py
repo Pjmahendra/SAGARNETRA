@@ -11,6 +11,9 @@ from datetime import UTC, datetime, timedelta
 from shapely.geometry import Point, shape
 
 ACQ = datetime(2026, 9, 6, 1, 12, tzinfo=UTC)
+#: The instant the reconstructed scenario is frozen at. Scenario vessels report just before it, so
+#: the fleet reads as one coherent moment rather than ships scattered across arbitrary dates.
+SCENARIO_NOW = datetime(2026, 9, 7, 5, 58, tzinfo=UTC)
 
 
 def hb(h: float) -> datetime:
@@ -85,42 +88,81 @@ ORIGIN_ZONES = [
     {"hours_before": 24, "center": [69.062, 20.775], "semi_major_km": 12.0, "semi_minor_km": 7.2, "bearing_deg": 42},
 ]
 
+# ---- Watch zones (sectors) -----------------------------------------------------------------------
+# The Indian sectors follow the real Indian Coast Guard command structure: five regions
+# (North-West, West, East, North-East, Andaman & Nicobar) subdivided into district-sized patrol
+# sectors, together covering the whole mainland coast plus both island territories. Three boxes
+# for a 7,500 km coastline was a demo prop; this is a plan an officer could recognise.
+#
+# Two hard rules, both load-bearing:
+#   * Sectors must not overlap. A detection is filed under the *first* zone whose outline contains
+#     it (`sectors.zone_for_point`), so an overlap would make that assignment arbitrary. The boxes
+#     below share edges but never interiors, and `python -m scripts.check_sectors` proves it.
+#   * `traffic` is the scenario AIS population laid down in that sector, set from the real relative
+#     busyness of the water — Mumbai and Kandla carry India's container and crude traffic, the
+#     Lakshadweep Sea and the Nicobars genuinely do not. A quiet sector reading 5 vessels is a true
+#     statement about quiet water, not missing data.
+#
+# `last_scene_at` is deliberately absent for most sectors: Sentinel-1's revisit means only a few
+# sectors have a recent scene at any moment, and the console says so rather than implying
+# nationwide simultaneous coverage.
+def _box(w, s, e, n):
+    return {"type": "Polygon", "coordinates": [[[w, s], [e, s], [e, n], [w, n], [w, s]]]}
+
+
+#: (id, name, region, west, south, east, north, scenario vessel population)
+_SECTOR_TABLE = [
+    # North-West Region — HQ Gandhinagar. India's crude and container gateway.
+    ("z-kut", "Gulf of Kutch — Kandla & Mundra", "North-West", 68.2, 22.0, 70.4, 23.4, 34),
+    ("z-guj", "Gujarat Offshore Lane", "North-West", 68.2, 20.4, 70.4, 22.0, 22),
+    ("z-bmh", "Bombay High Oilfield", "North-West", 70.4, 19.0, 72.2, 20.6, 18),
+    # West Region — HQ Mumbai.
+    ("z-mum", "Mumbai Approaches", "West", 72.2, 18.4, 73.1, 19.3, 46),
+    ("z-rat", "Ratnagiri–Vengurla", "West", 72.4, 16.0, 73.6, 18.4, 9),
+    ("z-goa", "Goa–Karwar Offshore", "West", 72.6, 14.4, 74.0, 16.0, 14),
+    ("z-mng", "Mangaluru–Malpe", "West", 73.4, 12.8, 74.9, 14.4, 12),
+    ("z-koc", "Kochi–Kozhikode", "West", 74.4, 9.4, 76.3, 12.8, 19),
+    ("z-lak", "Lakshadweep Sea", "West", 71.0, 8.0, 74.4, 12.6, 5),
+    # East Region — HQ Chennai.
+    ("z-cmn", "Cape Comorin & Gulf of Mannar", "East", 76.4, 7.6, 79.0, 9.6, 11),
+    ("z-cor", "Palk Bay–Coromandel", "East", 79.0, 9.6, 80.6, 12.0, 8),
+    # Chennai–Ennore turns out to have real AISStream receiver coverage — 25 ships recorded, ~17
+    # heard in any two-hour window. DECISIONS 2026-09-08 said Indian coverage was ~zero; that was
+    # measured over the Gulf of Kutch only and is wrong for the east coast. So this sector is
+    # seeded with NO scenario traffic: its vessels are real live Indian AIS, which is worth far
+    # more to the pitch than 27 invented hulls, and mixing the two in one sector would waste it.
+    ("z-che", "Chennai–Ennore", "East", 80.2, 12.8, 80.9, 13.6, 0),
+    ("z-vsk", "Kakinada–Visakhapatnam", "East", 81.6, 14.0, 84.2, 18.2, 21),
+    # North-East Region — HQ Kolkata.
+    ("z-par", "Paradip–Dhamra", "North-East", 84.2, 18.2, 87.4, 21.0, 16),
+    ("z-snd", "Sandheads & Haldia Approaches", "North-East", 87.4, 20.4, 89.2, 21.8, 13),
+    # Andaman & Nicobar Region — HQ Port Blair. The Great Channel carries Malacca-bound traffic.
+    ("z-and", "Andaman & Nicobar Sea", "A&N", 91.0, 6.0, 94.5, 14.0, 6),
+]
+
+#: Sectors with a recent SAR scene. Everything else honestly reports no scene yet.
+_LAST_SCENE = {
+    "z-guj": ACQ,
+    "z-kut": datetime(2026, 9, 5, 1, 0, tzinfo=UTC),
+    "z-mum": datetime(2026, 9, 4, 1, 5, tzinfo=UTC),
+    "z-che": datetime(2026, 9, 5, 0, 31, tzinfo=UTC),
+    "z-vsk": datetime(2026, 9, 6, 0, 28, tzinfo=UTC),
+    "z-koc": datetime(2026, 9, 6, 1, 22, tzinfo=UTC),
+    "z-par": datetime(2026, 9, 3, 0, 25, tzinfo=UTC),
+    "z-bmh": datetime(2026, 9, 4, 1, 8, tzinfo=UTC),
+}
+
 ZONES = [
     {
-        "_id": "z-guj",
-        "name": "Gujarat Offshore Lane",
-        "region": "North-West",
-        "last_scene_at": ACQ,
-        "vessels_now": 61,
-        "geometry": {
-            "type": "Polygon",
-            # Extends north to the Gulf of Kutch so Kandla and Mundra, and the kut-04 clean-sea tile,
-            # fall inside the sector rather than in unwatched water.
-            "coordinates": [[[68.4, 20.4], [70.2, 20.4], [70.2, 22.8], [68.4, 22.8], [68.4, 20.4]]],
-        },
-    },
-    {
-        "_id": "z-mum",
-        "name": "Mumbai Approaches",
-        "region": "West",
-        "last_scene_at": datetime(2026, 9, 4, 1, 5, tzinfo=UTC),
-        "vessels_now": 58,
-        "geometry": {
-            "type": "Polygon",
-            "coordinates": [[[72.2, 18.4], [73.1, 18.4], [73.1, 19.3], [72.2, 19.3], [72.2, 18.4]]],
-        },
-    },
-    {
-        "_id": "z-che",
-        "name": "Chennai–Ennore",
-        "region": "East",
-        "last_scene_at": datetime(2026, 9, 5, 0, 31, tzinfo=UTC),
-        "vessels_now": 24,
-        "geometry": {
-            "type": "Polygon",
-            "coordinates": [[[80.2, 12.8], [80.9, 12.8], [80.9, 13.6], [80.2, 13.6], [80.2, 12.8]]],
-        },
-    },
+        "_id": zid,
+        "name": name,
+        "region": region,
+        "last_scene_at": _LAST_SCENE.get(zid),
+        "traffic": traffic,
+        "geometry": _box(w, s, e, n),
+    }
+    for zid, name, region, w, s, e, n, traffic in _SECTOR_TABLE
+] + [
     {
         # The live-AIS zone. AISStream's free feed is community shore receivers, which are dense
         # here and absent off India (see DECISIONS 2026-09-08), so this is the only watch zone
@@ -136,17 +178,25 @@ ZONES = [
         "name": "Dover Strait",
         "region": "Europe",
         "last_scene_at": datetime(2026, 9, 7, 5, 42, tzinfo=UTC),
-        "vessels_now": 0,
-        "geometry": {
-            "type": "Polygon",
-            "coordinates": [[[0.5, 50.3], [2.6, 50.3], [2.6, 51.5], [0.5, 51.5], [0.5, 50.3]]],
-        },
-    },
+        "traffic": 0,  # never seeded: this sector's vessels are the real ones off the recorder
+        "geometry": _box(0.5, 50.3, 2.6, 51.5),
+    }
 ]
 
-#: Zones whose vessels come from the live AIS recorder rather than the seeded scenario.
-LIVE_ZONE_IDS = ["z-nsc"]
-INDIAN_ZONE_IDS = ["z-guj", "z-mum", "z-che"]
+# ---- The two data sources, kept in separate hands -------------------------------------------------
+# The platform runs on two kinds of AIS and the demo turns on never letting them blur. So the split
+# is drawn by *data source*, not by geography, and it decides sector ownership:
+#
+#   LIVE      Chennai–Ennore and the Dover Strait. Real AISStream receiver coverage, recorded by
+#             scripts/ais_collector. Never seeded — every ship in these two sectors is a real
+#             report from a real hull. Held by the live-feed watch officer.
+#   SCENARIO  The other fifteen Indian sectors. Vessels are the reconstruction we generated, all
+#             stamped source:"scenario" and badged "demo" in the UI. Held by the Indian officer.
+#
+# One officer per source means an account can never show both at once, so nothing on screen during
+# either demo is a mixture — you log in and everything you are looking at has one provenance.
+LIVE_ZONE_IDS = ["z-che", "z-nsc"]
+SCENARIO_ZONE_IDS = [z["_id"] for z in ZONES if z["_id"] not in LIVE_ZONE_IDS]
 
 
 def _rank(v: dict, f: dict) -> dict:
@@ -526,6 +576,103 @@ VESSELS = [
     for i, r in enumerate(RANKING)
 ]
 
+
+# ---- Background sector traffic -------------------------------------------------------------------
+# The eight vessels above are the *case*: hand-authored, individually reasoned, the ones the ranking
+# argues about. They are not the sea. Without a background population every sector outside Gujarat
+# reads "0 vessels", which is not a quiet sector — it is an empty database, and an officer can tell
+# the difference at a glance.
+#
+# So each Indian sector gets a scenario population sized to its real busyness (see `traffic` in
+# _SECTOR_TABLE). These are labelled `source: "scenario"` exactly like the case vessels and are
+# deterministic — same seed, same fleet, every run — so a number quoted in the pitch stays true.
+# The Dover Strait is excluded on purpose: that sector's ships come off the live recorder, and
+# mixing one invented hull into real AIS would poison the only genuinely real dataset we have.
+
+#: Flags weighted to what actually transits the Indian EEZ, with the MID that MMSI encodes.
+_FLEET_FLAGS = [
+    ("IN", "419"), ("IN", "419"), ("IN", "419"), ("PA", "351"), ("LR", "636"),
+    ("MH", "538"), ("SG", "563"), ("AE", "470"), ("HK", "477"), ("MT", "249"),
+]
+_FLEET_TYPES = [
+    ("cargo", 0.34), ("tanker", 0.24), ("fishing", 0.22),
+    ("container", 0.12), ("tug", 0.05), ("passenger", 0.03),
+]
+_HULL_A = ["MAITRI", "SAGAR", "KAVERI", "ASIAN", "OCEAN", "GULF", "PACIFIC", "STAR", "NORDIC",
+           "ORIENT", "DESH", "JAG", "CORAL", "MONSOON", "SILVER", "GOLDEN", "BLUE", "GREAT"]
+_HULL_B = ["PIONEER", "TRADER", "VOYAGER", "SPIRIT", "GLORY", "HORIZON", "MARINER", "EXPRESS",
+           "PRIDE", "BREEZE", "CHAMPION", "HARMONY", "VENTURE", "LEADER", "PROSPER", "DAWN"]
+_PORTS = ["INBOM", "INKDL", "INMUN", "INCOK", "INMAA", "INVTZ", "INPRT", "INHAL", "INTUT",
+          "AEJEA", "SGSIN", "LKCMB", "OMSOH", None]
+
+
+def _pick(seq, n: int):
+    """Deterministic choice. A plain modulo over a hash keeps every run identical without a global RNG."""
+    return seq[n % len(seq)]
+
+
+def _weighted_type(n: int) -> str:
+    x = (n % 1000) / 1000.0
+    acc = 0.0
+    for name, w in _FLEET_TYPES:
+        acc += w
+        if x < acc:
+            return name
+    return "cargo"
+
+
+def _traffic_vessels() -> list[dict]:
+    """Scenario AIS population for every Indian sector, sized by that sector's real traffic."""
+    docs: list[dict] = []
+    seq = 0
+    for z in ZONES:
+        n_ships = z.get("traffic") or 0
+        if not n_ships:
+            continue
+        w, s, e, n = _bbox_of(z["geometry"])
+        # A lane bearing per sector: ships in a shipping lane are not scattered at random headings.
+        lane = (sum(ord(c) for c in z["_id"]) * 37) % 360
+        for _ in range(n_ships):
+            seq += 1
+            h = seq * 2654435761 % 1_000_003  # Knuth multiplicative; spreads consecutive ships apart
+            flag, mid = _pick(_FLEET_FLAGS, h)
+            kind = _weighted_type(h // 7)
+            # Fishing boats hug the coast and wander; traders hold the lane.
+            wander = 40 if kind == "fishing" else 8
+            lon = round(w + (e - w) * ((h % 977) / 977.0) * 0.92 + (e - w) * 0.04, 4)
+            lat = round(s + (n - s) * (((h // 977) % 983) / 983.0) * 0.92 + (n - s) * 0.04, 4)
+            moving = kind != "tug" or h % 3
+            docs.append({
+                "_id": f"v-{mid}{400000 + seq:06d}",
+                "mmsi": f"{mid}{400000 + seq:06d}",
+                "imo": None if kind == "fishing" else str(9_100_000 + seq * 37),
+                "name": f"{'MT' if kind == 'tanker' else 'MV'} {_pick(_HULL_A, h)} {_pick(_HULL_B, h // 13)}",
+                "type_group": kind,
+                "flag": flag,
+                "length_m": {"fishing": 16 + h % 12, "tug": 28 + h % 8, "tanker": 145 + h % 130,
+                             "container": 190 + h % 140, "passenger": 90 + h % 60}.get(kind, 110 + h % 90),
+                "destination": _pick(_PORTS, h // 31),
+                "sog_kn": 0.0 if not moving else round(2.0 + (h % 130) / 10.0, 1),
+                "cog_deg": (lane + (h % (2 * wander)) - wander) % 360,
+                "position": [lon, lat],
+                "zone_id": z["_id"],
+                # Staggered across the last two hours so the list is not one implausible instant.
+                "last_seen": SCENARIO_NOW - timedelta(minutes=h % 115),
+                "source": "scenario",
+            })
+    return docs
+
+
+def _bbox_of(geometry: dict) -> tuple[float, float, float, float]:
+    ring = geometry["coordinates"][0]
+    lons = [c[0] for c in ring]
+    lats = [c[1] for c in ring]
+    return min(lons), min(lats), max(lons), max(lats)
+
+
+#: Background fleet, ~270 ships across the 16 Indian sectors. Built once at import.
+TRAFFIC_VESSELS = _traffic_vessels()
+
 SAMPLES = [
     {
         "_id": "guj-01",
@@ -563,7 +710,35 @@ SAMPLES = [
         "image_url": "/sar/kut-04.png",
         "synthetic": False,  # real Sentinel-1 tile (Deep-SAR test set); positioned in the zone as scenario
     },
+    # ---- Dover Strait -----------------------------------------------------------------------
+    # These two exist so the live-AIS officer has a sector to *work*, not just a vessel list.
+    # `acquired_at` is set by the seed to sit at the end of the actual AIS recording, because the
+    # whole point of a Dover case is that the backtrack runs against real recorded tracks: a
+    # hardcoded date would fall outside the recording and rank nobody.
+    {
+        "_id": "dov-05",
+        "label": "Dover Strait, northbound lane",
+        "scene": "S1A_IW_GRDH 7A44 · tile 5",
+        "acquired_at": None,
+        "bbox": [1.40, 50.90, 1.65, 51.10],
+        "image_url": "/sar/dov-05.png",
+        "synthetic": True,
+    },
+    {
+        "_id": "dov-06",
+        "label": "Belgian approach, clean sea",
+        "scene": "S1A_IW_GRDH 7A44 · tile 9",
+        "acquired_at": None,
+        "bbox": [1.90, 51.20, 2.15, 51.40],
+        "image_url": "/sar/dov-06.png",
+        "synthetic": True,
+    },
 ]
+
+#: Tiles whose acquisition time the seed pins to the live AIS recording rather than a fixed date.
+LIVE_SAMPLE_IDS = ["dov-05", "dov-06"]
+#: The Dover case: confirmed, promoted to an incident, ranked against real vessels.
+DOVER_SAMPLE = "dov-05"
 
 # File each sample tile under the sector its footprint sits in, so the detection console can show
 # an officer the scenes for their own region instead of every tile in the country.

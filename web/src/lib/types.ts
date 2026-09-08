@@ -31,7 +31,16 @@ export interface ZoneStatus {
   region?: Region | null
   last_scene_at: string | null
   vessels_now: number
+  /** Where this sector's vessels come from. Only two sectors carry a real feed. */
+  feed?: Feed
 }
+
+/**
+ * A sector's vessel provenance. `live` means real AIS recorded from AISStream — true only of
+ * Chennai–Ennore and the Dover Strait. `scenario` means the seeded reconstruction. Never guess it
+ * from the sector name: it is derived from the vessels actually in the database.
+ */
+export type Feed = 'live' | 'scenario' | 'none'
 
 /** The five Indian Coast Guard regions, plus the European liaison sector. */
 export type Region = 'West' | 'North-West' | 'East' | 'North-East' | 'A&N' | 'Europe'
@@ -140,6 +149,7 @@ export interface SectorSummary {
   open_incidents: number
   last_scene_at: string | null
   vessels_now: number
+  feed?: Feed
 }
 
 export interface SectorDetection {
@@ -159,7 +169,7 @@ export interface SectorDetection {
 }
 
 export interface SectorDetail {
-  sector: { id: string; name: string; region: string | null; center: LonLat | null; bbox: [number, number, number, number] | null }
+  sector: { id: string; name: string; region: string | null; center: LonLat | null; bbox: [number, number, number, number] | null; feed?: Feed }
   detections: SectorDetection[]
   incidents: Incident[]
 }
@@ -231,6 +241,8 @@ export interface ReportSnapshot {
   centroid: LonLat
   status: IncidentStatus
   is_demo: boolean
+  /** What the ranking was computed against: real recorded AIS, or the seeded reconstruction. */
+  ais_source?: 'live' | 'scenario' | 'mixed' | 'none' | 'unknown'
   ranked_count: number
   candidates_considered: number | null
   top_vessel: string | null

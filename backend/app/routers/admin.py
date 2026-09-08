@@ -9,7 +9,7 @@ from ..deps import Admin, Db
 from ..schemas import AdminUserOut, AuditOut, UserCreateIn, UserCreateOut, UserPatchIn, ZoneIn, ZoneOut
 from ..security import hash_password, temp_password
 from ..services import audit, users
-from ..services.sectors import vessels_now
+from ..services.sectors import feed_by_zone, vessels_now
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -78,7 +78,11 @@ async def reset_password(user_id: str, admin: Admin, db: Db):
 async def list_zones(_: Admin, db: Db):
     docs = await db.watch_zones.find().sort("name", 1).to_list(200)
     counts = await vessels_now(db)
-    return [ZoneOut(**{**out(d), "vessels_now": counts.get(d["_id"], 0)}) for d in docs]
+    feeds = await feed_by_zone(db)
+    return [
+        ZoneOut(**{**out(d), "vessels_now": counts.get(d["_id"], 0), "feed": feeds.get(d["_id"], "none")})
+        for d in docs
+    ]
 
 
 @router.post("/zones", response_model=ZoneOut, status_code=status.HTTP_201_CREATED)

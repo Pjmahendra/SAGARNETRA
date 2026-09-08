@@ -82,6 +82,9 @@ class ZoneOut(BaseModel):
     geometry: dict[str, Any] | None = None
     last_scene_at: datetime | None = None
     vessels_now: int = 0
+    #: "live" (real recorded AIS), "scenario" (the seeded reconstruction) or "none". Derived from
+    #: the vessels in the sector, never stored, so it cannot go stale against the data it describes.
+    feed: Literal["live", "scenario", "none"] = "none"
 
 
 class AuditOut(BaseModel):
