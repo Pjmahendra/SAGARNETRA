@@ -202,10 +202,17 @@ async def seed_demo_incident(db, officer: dict) -> None:
     # pointing at incidents that no longer exist — the Reports page listed them and every one
     # opened as "Report not found". Drop any report whose incident is gone, not just this one's.
     live = {i["_id"] async for i in db.incidents.find({}, {"_id": 1})}
-    orphans = [r["_id"] async for r in db.reports.find({}, {"incident_id": 1}) if r["incident_id"] not in live]
-    if orphans:
-        await db.reports.delete_many({"_id": {"$in": orphans}})
-        print(f"reports: removed {len(orphans)} orphaned by earlier seeds")
+    stale = [
+        r["_id"]
+        async for r in db.reports.find({}, {"incident_id": 1, "snapshot": 1})
+        # Orphaned by an earlier seed, or written under the pre-snapshot schema. The old shape had
+        # a `pages` count and no snapshot at all; it carried no zone_id either, so officers never
+        # saw it and only an admin hit the missing field.
+        if r["incident_id"] not in live or not r.get("snapshot")
+    ]
+    if stale:
+        await db.reports.delete_many({"_id": {"$in": stale}})
+        print(f"reports: removed {len(stale)} orphaned or pre-snapshot")
     await db.reports.delete_many({"incident_id": inc["_id"]})
     report = reports.build(inc, by_name=officer["name"], by_id=officer["_id"], revision=1)
     await db.reports.insert_one(report)

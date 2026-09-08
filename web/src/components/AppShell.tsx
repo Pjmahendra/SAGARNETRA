@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'motion/react'
 import { ChevronDown, FileText, LogOut, ScanSearch, ShieldCheck, Ship, Siren } from 'lucide-react'
-import { NavLink, Outlet, useNavigate } from 'react-router'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import type { LucideIcon } from 'lucide-react'
 import { hasRole, useAuth } from '../auth/store'
 import { api, MOCK_MODE } from '../lib/api'
 import { cn } from '../lib/cn'
+import ErrorBoundary from './ErrorBoundary'
 import { useUi } from '../store/ui'
 import { DUR, EASE } from '../lib/motion'
 
@@ -49,6 +50,7 @@ function Dot({ ok, label, detail }: { ok: boolean | null; label: string; detail:
 export default function AppShell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const { zoneId, setZone } = useUi()
   const health = useQuery({ queryKey: ['health'], queryFn: api.health, refetchInterval: 30_000 })
   const overview = useQuery({ queryKey: ['overview'], queryFn: api.overview })
@@ -146,8 +148,11 @@ export default function AppShell() {
         </div>
       </header>
 
+      {/* One page failing must not blank the console; the boundary resets when you navigate. */}
       <main className="min-h-0 overflow-auto">
-        <Outlet />
+        <ErrorBoundary key={pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </div>
   )
