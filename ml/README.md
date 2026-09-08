@@ -39,3 +39,25 @@ python -m ml.export --model-name <winner> --weights ml/weights/<winner>.pt
 
 Only the winner (best mIoU within the CPU-latency budget) is exported and served; the other four remain rows in
 `metrics.json` and appear in the Detection Console comparison table. `notebooks/train_colab.ipynb` drives all of this.
+
+### Getting the Krestenitis dataset (the training blocker)
+
+The console shows `HEURISTIC` / "pending training" until real weights exist. To train for real:
+
+1. **Request the dataset** — Krestenitis et al. 2019 "Oil Spill Detection Dataset" from MKLab (CERTH-ITI):
+   https://m4d.iti.gr/oil-spill-detection-dataset/ (fill the form; they email a download link). 1002 train + 110 test SAR patches, 5 classes (sea, oil, look-alike, ship, land).
+2. **Unzip** to a folder with this layout (our loader auto-detects it; `labels_1D` index masks preferred):
+   ```
+   krestenitis/
+     train/{images, labels_1D}
+     test/{images,  labels_1D}
+   ```
+3. **Train + export** (Colab T4 recommended — open `notebooks/train_colab.ipynb`, or locally):
+   ```bash
+   pip install -r ml/requirements-train.txt
+   python -m ml.train  --data-root /path/to/krestenitis --epochs 40
+   python -m ml.export --model-name <winner> --weights ml/weights/<winner>.pt
+   ```
+4. **Drop `ml/weights/<winner>.onnx` + `.json` on the API server and commit `ml/metrics.json`.** Restart the API →
+   `/api/health` flips `model: heuristic → unet`, and the Detection Console shows the real 5-model comparison. No app
+   code changes needed.
