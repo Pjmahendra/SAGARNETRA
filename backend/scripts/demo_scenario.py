@@ -402,6 +402,30 @@ INCIDENTS = [
     },
 ]
 
+def _demo_inc(_id, code, status, zone, zone_id, dt, area, conf, engine, centroid, top_tier=None, top_vessel=None):
+    """A lightweight recorded spill for a region (no ranking/geometry). 'detected' ones are unconfirmed and route to
+    the console; the rest are confirmed cases. Centroids sit inside the region's sample tile so a detected one
+    deep-links onto its scene."""
+    return {
+        "_id": _id, "code": code, "status": status, "zone": zone, "zone_id": zone_id,
+        "detected_at": dt, "area_km2": area, "confidence": conf, "engine": engine, "centroid": centroid,
+        "top_tier": top_tier, "top_vessel": top_vessel, "assigned_to": None, "is_demo": True,
+        "scene": "S1A_IW_GRDH synthetic tile", "polygon": [], "heading_deg": 0,
+        "origin_zones": [], "drift_inputs": {}, "ranking": [], "events": [], "hashes": {}, "created_at": dt,
+    }
+
+
+# More recorded spills per region, so each watch zone has a queue to work from the (synthetic) satellite database.
+INCIDENTS += [
+    _demo_inc("inc-036", "INC-2026-036", "detected", "Gujarat Offshore Lane", "z-guj", datetime(2026, 9, 3, 1, 20, tzinfo=UTC), 1.8, 0.71, "unet", [69.42, 21.06]),
+    _demo_inc("inc-035", "INC-2026-035", "investigating", "Gujarat Offshore Lane", "z-guj", datetime(2026, 9, 1, 1, 15, tzinfo=UTC), 3.1, 0.79, "unet", [69.50, 21.10], "poi", "MV KATHIAWAR"),
+    _demo_inc("inc-034", "INC-2026-034", "closed", "Gujarat Offshore Lane", "z-guj", datetime(2026, 8, 20, 1, 10, tzinfo=UTC), 0.9, 0.63, "heuristic", [69.35, 20.98]),
+    _demo_inc("inc-033", "INC-2026-033", "detected", "Mumbai Approaches", "z-mum", datetime(2026, 9, 2, 1, 5, tzinfo=UTC), 0.9, 0.66, "unet", [72.60, 18.85]),
+    _demo_inc("inc-032", "INC-2026-032", "investigating", "Mumbai Approaches", "z-mum", datetime(2026, 8, 27, 1, 0, tzinfo=UTC), 2.2, 0.74, "unet", [72.65, 18.90], "poi", "MT ARABIAN DAWN"),
+    _demo_inc("inc-031", "INC-2026-031", "detected", "Chennai–Ennore", "z-che", datetime(2026, 9, 4, 0, 40, tzinfo=UTC), 0.7, 0.77, "unet", [80.42, 13.20]),
+    _demo_inc("inc-030", "INC-2026-030", "closed", "Chennai–Ennore", "z-che", datetime(2026, 8, 18, 0, 35, tzinfo=UTC), 1.1, 0.60, "heuristic", [80.45, 13.25], "poi", "MV CORO STAR"),
+]
+
 _DEST = ["INMUN", "INKDL", "AEJEA", "SGSIN", None, "INPBD", "INOKH", None]
 VESSELS = [
     {

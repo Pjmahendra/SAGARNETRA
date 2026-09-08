@@ -27,6 +27,9 @@ export default function Dashboard() {
   const all = incidents.data ?? []
   const selected = all.find((i) => i.id === selectedId) ?? null
   const zoneOf = (name: string) => o?.zones.find((z) => z.name === name) ?? null
+  // The region chosen in the top bar drives the "recorded oil spills" list beside the map.
+  const zoneName = o?.zones.find((z) => z.id === zoneId)?.name ?? 'all zones'
+  const regionSpills = all.filter((i) => i.zone_id === zoneId)
 
   // On select the globe flies to the slick, then the panel dives into the real map with the incident's
   // slick, drift ellipses and AIS tracks, plus its sector's pending detections. Same behaviour as the old
@@ -197,28 +200,35 @@ export default function Dashboard() {
                         transition={{ duration: 0.2 }}
                       >
                         <div className="label-caps flex items-center gap-1.5 text-[10px]">
-                          <Crosshair className="size-3" /> No locality selected
+                          <Crosshair className="size-3" /> Recorded oil spills · {zoneName}
                         </div>
-                        <p className="mt-2 max-w-[42ch] text-sm text-ink-2">
-                          Every pulsing dot is a slick we detected in radar. Click one to pull up where it is, how big it is, and which
-                          vessel is currently the strongest lead.
+                        <p className="mt-2 max-w-[44ch] text-sm text-ink-2">
+                          Slicks detected in this region. Click one to pull it up — a confirmed case shows its evidence; an
+                          unconfirmed detection opens in the console to run the models.
                         </p>
-                        <ul className="mt-4 divide-y divide-line rounded-md border border-line">
-                          {all.slice(0, 4).map((i) => (
-                            <li key={i.id}>
-                              <button
-                                type="button"
-                                onClick={() => selectIncident(i.id)}
-                                className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-2/60"
-                              >
-                                <span className="font-mono text-xs text-ink-2">{i.code}</span>
-                                <span className="min-w-0 flex-1 truncate text-sm">{i.zone}</span>
-                                <span className="font-mono text-xs text-ink-3">{fmtKm2(i.area_km2)}</span>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                        <p className="mt-3 text-xs text-ink-3">Drag the globe to spin it. Double-click to reset.</p>
+                        {regionSpills.length === 0 ? (
+                          <div className="mt-4 rounded-md border border-dashed border-line px-4 py-6 text-center text-sm text-ink-3">
+                            No recorded spills in {zoneName} yet.
+                          </div>
+                        ) : (
+                          <ul className="mt-4 max-h-72 divide-y divide-line overflow-auto rounded-md border border-line">
+                            {regionSpills.map((i) => (
+                              <li key={i.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => selectIncident(i.id)}
+                                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-surface-2/60"
+                                >
+                                  <span className="font-mono text-xs text-ink-2">{i.code}</span>
+                                  <span className="min-w-0 flex-1 truncate text-sm">{i.zone}</span>
+                                  <StatusChip status={i.status} />
+                                  <span className="font-mono text-xs tnum text-ink-3">{fmtKm2(i.area_km2)}</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <p className="mt-3 text-xs text-ink-3">Switch region in the top bar to see other zones. Drag the globe to spin.</p>
                       </motion.div>
                     )}
                   </AnimatePresence>
