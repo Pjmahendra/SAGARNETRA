@@ -534,7 +534,7 @@ SAMPLES = [
         "acquired_at": ACQ,
         "bbox": [69.30, 20.95, 69.55, 21.15],
         "image_url": "/sar/guj-01.png",
-        "synthetic": True,
+        "synthetic": False,  # real Sentinel-1 tile (Deep-SAR); scenario placement in the zone
     },
     {
         "_id": "mum-02",
@@ -543,7 +543,7 @@ SAMPLES = [
         "acquired_at": datetime(2026, 8, 29, 1, 5, tzinfo=UTC),
         "bbox": [72.50, 18.75, 72.75, 18.95],
         "image_url": "/sar/mum-02.png",
-        "synthetic": True,
+        "synthetic": False,  # real Sentinel-1 tile (Deep-SAR); scenario placement in the zone
     },
     {
         "_id": "che-03",
@@ -552,7 +552,7 @@ SAMPLES = [
         "acquired_at": datetime(2026, 8, 24, 0, 31, tzinfo=UTC),
         "bbox": [80.30, 13.10, 80.55, 13.30],
         "image_url": "/sar/che-03.png",
-        "synthetic": True,
+        "synthetic": False,  # real Sentinel-1 tile (Deep-SAR); scenario placement in the zone
     },
     {
         "_id": "kut-04",
@@ -561,7 +561,7 @@ SAMPLES = [
         "acquired_at": datetime(2026, 9, 5, 1, 0, tzinfo=UTC),
         "bbox": [68.90, 22.40, 69.15, 22.60],
         "image_url": "/sar/kut-04.png",
-        "synthetic": True,
+        "synthetic": False,  # real Sentinel-1 tile (Deep-SAR); scenario placement in the zone
     },
 ]
 
