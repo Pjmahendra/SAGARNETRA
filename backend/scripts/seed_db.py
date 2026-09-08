@@ -36,11 +36,11 @@ from app.services import drift, incidents, reports, weather  # noqa: E402
 from app.services.ranking import LOOKBACK_H  # noqa: E402
 from app.services.users import create_user, find_by_email  # noqa: E402
 from scripts.demo_scenario import (  # noqa: E402
-    EU_ZONE_IDS,
     INCIDENTS,
-    INDIAN_ZONE_IDS,
+    LIVE_ZONE_IDS,
     REPORTS,
     SAMPLES,
+    SCENARIO_ZONE_IDS,
     TRAFFIC_VESSELS,
     ZONES,
     build_positions,
@@ -59,7 +59,24 @@ async def upsert(db, name: str, docs: list[dict]) -> None:
     print(f"{name}: {len(docs)} documents")
 
 
+#: Accounts renamed since an earlier seed, {old email: new email}. Renamed rather than recreated so
+#: the operator keeps their password and their audit history; a second account with the same job
+#: would leave a stale one holding sectors it no longer owns.
+RENAMED = {"officer.eu@sagarnetra.in": "officer.ais@sagarnetra.in"}
+
+
+async def migrate_emails(db) -> None:
+    for old, new in RENAMED.items():
+        if await find_by_email(db, new):
+            continue
+        doc = await find_by_email(db, old)
+        if doc:
+            await db.users.update_one({"_id": doc["_id"]}, {"$set": {"email": new}})
+            print(f"users: renamed {old} -> {new} (password unchanged)")
+
+
 async def seed_accounts(db) -> dict:
+    await migrate_emails(db)
     accounts = [
         (
             "admin@sagarnetra.in",
@@ -77,20 +94,22 @@ async def seed_accounts(db) -> dict:
             "officer",
             "ICG Maritime Surveillance, Porbandar",
             "North-West",
-            INDIAN_ZONE_IDS,
+            SCENARIO_ZONE_IDS,
         ),
-        # A second officer holding the Dover Strait, the European sector with dense AIS receiver
-        # coverage, so the demo can show heavy live traffic beside the reconstructed Indian case
-        # without ever mixing them: each officer sees only their own zones. Note that Chennai is
-        # live too and stays Indian — see EU_ZONE_IDS in demo_scenario.
+        # The live-feed watch: the only two sectors with real AIS receiver coverage, Chennai–Ennore
+        # and the Dover Strait. Split by data source rather than geography, so this account shows
+        # nothing but real recorded ships and the account above shows nothing but the
+        # reconstruction. Neither can ever display a mixture, which is the whole point.
+        # `region` is left unset on purpose: this officer's remit is a feed, not a coastline, and
+        # inventing a region label would be the one dishonest field on the account.
         (
-            "officer.eu@sagarnetra.in",
+            "officer.ais@sagarnetra.in",
             "Lt. Cdr. K. Nair",
             os.getenv("SEED_OFFICER_PASSWORD", "Officer@123"),
             "officer",
-            "Bonn Agreement liaison, North Sea",
-            "Europe",
-            EU_ZONE_IDS,
+            "Live AIS watch — Chennai–Ennore & Dover Strait",
+            None,
+            LIVE_ZONE_IDS,
         ),
     ]
     officer = None
@@ -161,7 +180,7 @@ async def seed_demo_incident(db, officer: dict) -> None:
     await upsert(db, "vessels", TRAFFIC_VESSELS)
     seeded_sectors = len({v["zone_id"] for v in TRAFFIC_VESSELS})
     print(f"sectors: {len(TRAFFIC_VESSELS)} background vessels across {seeded_sectors} sectors "
-          f"({len(INDIAN_ZONE_IDS)} Indian sectors total; live ones are left to the recorder)")
+          f"({len(SCENARIO_ZONE_IDS)} scenario sectors; the {len(LIVE_ZONE_IDS)} live ones are the recorder's)")
 
     # the detection an officer would have confirmed, then the incident exactly as the API creates it
     await db.incidents.delete_many({"is_demo": True, "_id": {"$nin": [i["_id"] for i in INCIDENTS]}})

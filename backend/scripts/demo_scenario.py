@@ -183,13 +183,20 @@ ZONES = [
     }
 ]
 
-#: Zones whose vessels come from the live AIS recorder rather than the seeded scenario. Both have
-#: real receiver coverage; neither is ever seeded with scenario traffic.
-LIVE_ZONE_IDS = ["z-nsc", "z-che"]
-#: The Dover Strait alone belongs to the European liaison. Chennai is live *and* Indian, so it stays
-#: with the Indian officer — that sector is the proof we have real Indian AIS, not just a scenario.
-EU_ZONE_IDS = ["z-nsc"]
-INDIAN_ZONE_IDS = [z["_id"] for z in ZONES if z["_id"] not in EU_ZONE_IDS]
+# ---- The two data sources, kept in separate hands -------------------------------------------------
+# The platform runs on two kinds of AIS and the demo turns on never letting them blur. So the split
+# is drawn by *data source*, not by geography, and it decides sector ownership:
+#
+#   LIVE      Chennai–Ennore and the Dover Strait. Real AISStream receiver coverage, recorded by
+#             scripts/ais_collector. Never seeded — every ship in these two sectors is a real
+#             report from a real hull. Held by the live-feed watch officer.
+#   SCENARIO  The other fifteen Indian sectors. Vessels are the reconstruction we generated, all
+#             stamped source:"scenario" and badged "demo" in the UI. Held by the Indian officer.
+#
+# One officer per source means an account can never show both at once, so nothing on screen during
+# either demo is a mixture — you log in and everything you are looking at has one provenance.
+LIVE_ZONE_IDS = ["z-che", "z-nsc"]
+SCENARIO_ZONE_IDS = [z["_id"] for z in ZONES if z["_id"] not in LIVE_ZONE_IDS]
 
 
 def _rank(v: dict, f: dict) -> dict:

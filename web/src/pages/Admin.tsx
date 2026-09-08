@@ -126,7 +126,9 @@ export default function Admin() {
             <p className="max-w-[70ch] text-sm text-ink-2">
               A sector is one stretch of water an officer is answerable for. Sectors must not overlap: a detection is
               filed under the first sector whose outline contains it, so two overlapping sectors would make that
-              arbitrary. Water outside every sector is visible to admins only.
+              arbitrary. Water outside every sector is visible to admins only. The badge on each sector says where
+              its vessels come from — <strong className="text-ok">live AIS</strong> is real recorded traffic,{' '}
+              <strong className="text-warn">scenario</strong> is the seeded reconstruction.
             </p>
             <NewSectorButton onDone={(msg) => { setNotice(msg); refetch() }} onError={onErr} />
           </div>
@@ -138,6 +140,16 @@ export default function Admin() {
                   <span className="font-mono text-xs text-ink-3">{z.id}</span>
                 </div>
                 <dl className="mt-2 space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <dt className="text-ink-2">Vessel feed</dt>
+                    <dd>
+                      {z.feed === 'live'
+                        ? <span className="rounded border border-ok/40 bg-ok-soft px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-ok" title="Real AIS recorded from AISStream">live ais</span>
+                        : z.feed === 'scenario'
+                          ? <span className="rounded border border-warn/50 bg-warn-soft px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-warn" title="Seeded reconstruction, not real AIS">scenario</span>
+                          : <span className="rounded border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-ink-3" title="No vessels filed under this sector at all">no data</span>}
+                    </dd>
+                  </div>
                   <div className="flex justify-between"><dt className="text-ink-2">Vessels now</dt><dd className="font-mono tnum">{z.vessels_now}</dd></div>
                   <div className="flex justify-between"><dt className="text-ink-2">Last scene</dt><dd className="font-mono text-xs">{z.last_scene_at ? fmtUtc(z.last_scene_at) : 'none'}</dd></div>
                 </dl>

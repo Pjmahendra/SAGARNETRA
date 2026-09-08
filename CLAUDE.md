@@ -54,7 +54,11 @@ cd web && npm install && npm run dev            # frontend on http://localhost:5
 cd backend && python3.13 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
 cp .env.example .env                             # then set JWT_SECRET
-python -m scripts.seed_db                        # admin@sagarnetra.in / Admin@123, officer@sagarnetra.in / Officer@123
+python -m scripts.seed_db                        # admin@sagarnetra.in / Admin@123
+# Two officers, split strictly by DATA SOURCE so neither can ever show a mixture:
+#   officer@sagarnetra.in     / Officer@123  -> the 15 scenario sectors (our reconstruction)
+#   officer.ais@sagarnetra.in / Officer@123  -> the 2 live-AIS sectors (Chennai-Ennore, Dover)
+# (officer.ais was officer.eu; the seed renames it in place and keeps the password.)
 uvicorn app.main:app --reload --port 8000        # backend on http://localhost:8000, docs at /docs
 pytest -q && ruff check .                        # tests run on in-memory Mongo, no server needed
 docker compose up -d                             # local MongoDB on 27017 (or: brew services start mongodb-community)

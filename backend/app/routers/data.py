@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from ..db import out
 from ..deps import Db, Officer
-from ..services.sectors import vessels_now, zone_filter
+from ..services.sectors import feed_by_zone, vessels_now, zone_filter
 
 router = APIRouter(prefix="/api", tags=["data"])
 
@@ -28,8 +28,12 @@ async def overview(user: Officer, db: Db):
     # vessels_now is counted from the vessels themselves; the stored field was seeded and never
     # updated, so it read 0 for a sector holding 189 real ships.
     counts = await vessels_now(db)
+    # Which sectors carry a real AIS feed and which are the reconstruction. The header's AIS light
+    # sits beside the sector dropdown, so it has to speak about the selected sector, not the
+    # platform — otherwise it reads green next to fifteen sectors that have no live feed at all.
+    feeds = await feed_by_zone(db)
     zones = [
-        {**out(z), "vessels_now": counts.get(z["_id"], 0)}
+        {**out(z), "vessels_now": counts.get(z["_id"], 0), "feed": feeds.get(z["_id"], "none")}
         for z in await db.watch_zones.find(zone_scope, {"geometry": 0}).sort("name", 1).to_list(200)
     ]
     recent = [out(a) for a in await db.audit.find({"action": {"$ne": "login.failed"}}).sort("at", -1).to_list(8)]
