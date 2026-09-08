@@ -1,13 +1,23 @@
-# Login backdrop clip (optional)
+# Sign-in backdrop
 
-`web/src/components/SeaBackdrop.tsx` looks for a looping clip here and fades it in over the drawn
-water if it finds one. Nothing breaks if this folder stays empty — the canvas sea is the default,
-not a placeholder.
+`web/src/components/SeaBackdrop.tsx` layers three things, each covering the one below if present.
 
-    login.webm    preferred, much smaller at the same quality
-    login.mp4     fallback for Safari
+    login.jpg           the Chennai–Ennore coast. This is what normally shows.
+    login.webm / .mp4   optional looping clip; fades in over the still if you add one.
+    (canvas)            a sea drawn in code, underneath both, so the page is never blank.
 
-Keep it short (8-15 s), silent, and seamless end-to-end; it is muted and looped. Keep it small:
-there is no git-lfs in this repo, and the demo has to survive the venue WiFi dying, so the clip is
-bundled, not streamed. Under ~4 MB is a sensible ceiling. Crop to roughly 16:9 — it is drawn with
-`object-fit: cover` behind the sign-in panel.
+## login.jpg
+
+Esri World Imagery — the same tile service the console's maps use — for 80.12–80.62 E, 12.94–13.34 N
+at zoom 13, stitched into one image, then softened and graded down so the sign-in panel reads over
+it. The blur is not only for depth of field: Esri mosaics captures of different dates along this
+coast, and the joins show as rectangular tonal steps.
+
+Regenerate with `scripts/stitch_login_bg.py`. **Credit is required** and is rendered bottom-right of
+the page; keep it if you change the image.
+
+## A clip instead
+
+Keep it short (8–15 s), silent and seamlessly looping — it is muted and looped. Keep it small: there
+is no git-lfs here and the demo has to work with the network off, so it is bundled, not streamed.
+Under ~4 MB. Crop to roughly 16:9; it is drawn with `object-fit: cover`.

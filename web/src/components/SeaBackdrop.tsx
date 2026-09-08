@@ -1,18 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 
 /**
- * The moving-water backdrop behind the sign-in page.
+ * The backdrop behind the sign-in page: the Chennai–Ennore coast this console watches.
  *
- * Two layers, in order of preference:
+ * Three layers, each covering the one below if it is there:
  *
- *  1. A real clip, if one exists at `public/media/login.mp4` (or `.webm`). Drop a file there and it
- *     fades in on top; nothing else needs changing.
- *  2. Water drawn live on a canvas, which is what runs when there is no file.
+ *  1. `public/media/login.jpg` — Esri World Imagery of the sector, the same source the incident
+ *     maps use, stitched and graded offline into one 140 kB still. This is what normally shows.
+ *  2. `public/media/login.{webm,mp4}` — a looping clip, if anyone drops one in. Nothing else needs
+ *     changing; it fades in over the still.
+ *  3. A sea drawn live on canvas, underneath both. It is what you would see if the still were ever
+ *     missing, and it is why the page can never come up blank.
  *
- * The canvas is the default rather than a stopgap. The build plan is explicit that the demo has to
- * survive the venue WiFi dying, and a bundled video is megabytes in a repo with no git-lfs, so the
- * page must look right with no asset at all. Drawn water is a few kilobytes of code, sharp at any
- * resolution, and cannot fail to load.
+ * Everything is bundled, nothing is fetched at runtime: the build plan requires the demo to survive
+ * the venue WiFi dying, so a CDN backdrop was never an option.
  *
  * Motion is honest about being decorative: it stops when the tab is hidden, and it never starts for
  * a viewer who has asked the operating system to reduce motion.
@@ -113,6 +114,7 @@ function paint(ctx: CanvasRenderingContext2D, w: number, h: number, t: number) {
 export default function SeaBackdrop({ className }: { className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [videoReady, setVideoReady] = useState(false)
+  const [imgReady, setImgReady] = useState(false)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -160,8 +162,17 @@ export default function SeaBackdrop({ className }: { className?: string }) {
   return (
     <div className={className} aria-hidden>
       <canvas ref={canvasRef} className="size-full" />
+
+      {/* The Chennai–Ennore coast from the same Esri imagery the console's maps use, stitched and
+          graded offline into `public/media/login.jpg`. Bundled, so it needs no network. It layers
+          over the canvas; if the file were ever missing, the drawn sea is still underneath. */}
+      <img
+        src="/media/login.jpg" alt=""
+        className={`absolute inset-0 size-full object-cover transition-opacity duration-700 ${imgReady ? 'opacity-100' : 'opacity-0'}`}
+        onLoad={() => setImgReady(true)}
+      />
       {/* Optional: drop a clip at web/public/media/login.mp4 and it takes over. If the file is not
-          there the request 404s, onError fires, and the canvas simply stays. */}
+          there the request 404s, onError fires, and the still simply stays. */}
       <video
         className={`absolute inset-0 size-full object-cover transition-opacity duration-1000 ${videoReady ? 'opacity-100' : 'opacity-0'}`}
         autoPlay muted loop playsInline preload="auto"
