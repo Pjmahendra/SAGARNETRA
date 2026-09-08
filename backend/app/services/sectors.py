@@ -50,16 +50,22 @@ async def vessels_now(db: AsyncIOMotorDatabase) -> dict[str, int]:
 
 
 def zone_filter(user: dict) -> dict:
-    """Mongo filter restricting a query to the officer's own sector.
+    """Mongo filter restricting a query to the officer's own sectors.
 
-    An officer sees only the zones they are assigned; an admin, and an officer with no zones set,
-    sees everything. This is what keeps live North Sea traffic and the Indian scenario apart: they
-    share the same collections and are separated by who is asking.
+    Scope follows the *role*, not the length of the list. An admin sees everything; an officer sees
+    the zones they are assigned, and an officer assigned none sees nothing.
+
+    That last case used to fall through to "no filter", which meant a newly created officer with no
+    sectors silently saw every zone in the country — the opposite of the intent, and the failure
+    mode you would least want to discover in front of an auditor. An impossible filter is the safe
+    default: an unassigned account is inert until an admin gives it a sector.
+
+    This is what keeps live Dover traffic and the Indian scenario apart. They share the same
+    collections and are separated by who is asking.
     """
-    zone_ids = user.get("zone_ids") or []
-    if user.get("role") == "admin" or not zone_ids:
+    if user.get("role") == "admin":
         return {}
-    return {"zone_id": {"$in": zone_ids}}
+    return {"zone_id": {"$in": user.get("zone_ids") or []}}
 
 
 def _center_bbox(geometry: dict | None) -> tuple[list[float] | None, list[float] | None]:
@@ -103,10 +109,13 @@ def _detection_summary(d: dict) -> dict:
     }
 
 
-async def list_sectors(db: AsyncIOMotorDatabase) -> list[dict]:
+async def list_sectors(db: AsyncIOMotorDatabase, user: dict | None = None) -> list[dict]:
+    """The officer's own sectors. `user=None` means unscoped, which only admin paths should use."""
     counts = await vessels_now(db)
+    scope = zone_filter(user) if user else {}
+    zone_scope = {"_id": scope["zone_id"]} if scope else {}
     sectors = []
-    async for z in db.watch_zones.find().sort("name", 1):
+    async for z in db.watch_zones.find(zone_scope).sort("name", 1):
         center, bbox = _center_bbox(z.get("geometry"))
         sectors.append({
             "id": z["_id"],

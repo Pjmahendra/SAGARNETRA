@@ -29,7 +29,10 @@ async def client():
             password="Officer@12345",
             role="officer",
             region="North-West",
-            zone_ids=[],
+            # Scope follows the role and the list is now authoritative: an officer with no zones
+            # sees nothing, by design. The fixture officer therefore holds the zones the suite
+            # exercises, which is also what a real provisioned officer looks like.
+            zone_ids=["z-guj", "z-mum", "z-che", "z-test", "z-1"],
             must_change_password=False,
         )
         disabled = await create_user(db, email="gone@test.in", name="Gone", password="Gone@12345", role="officer")
