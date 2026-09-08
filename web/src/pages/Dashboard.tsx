@@ -10,6 +10,7 @@ import { cn } from '../lib/cn'
 import { Empty, EngineBadge, KpiTile, PageHeader, Panel, Spinner, StatusChip, TierChip } from '../components/Primitives'
 import SpillGlobe from '../components/SpillGlobe'
 import RealMap, { type MapPoint } from '../components/RealMap'
+import { useCurtainNavigate } from '../store/curtain'
 import type { Incident, LonLat } from '../lib/types'
 import { useUi } from '../store/ui'
 
@@ -43,6 +44,7 @@ export default function Dashboard() {
   const [phase, setPhase] = useState<'globe' | 'map'>('globe')
   const zoomTimer = useRef<number | null>(null)
   const navigate = useNavigate()
+  const goToInvestigation = useCurtainNavigate()
   const { zoneId, setZone } = useUi()
 
   const all = incidents.data ?? []
@@ -260,12 +262,13 @@ export default function Dashboard() {
                             Analyse with the models <ArrowRight className="size-4" />
                           </button>
                         ) : (
-                          <Link
-                            to={`/app/incidents/${selected.id}`}
+                          <button
+                            type="button"
+                            onClick={() => goToInvestigation(`/app/incidents/${selected.id}`)}
                             className="mt-4 inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-deep"
                           >
                             Open investigation <ArrowRight className="size-4" />
-                          </Link>
+                          </button>
                         )}
                         <p className="mt-3 text-xs text-ink-3">
                           {selected.status === 'detected'
