@@ -5,6 +5,13 @@ import { ApiError, MOCK_MODE } from '../lib/api'
 import { Button, ErrorNote } from '../components/Primitives'
 import SeaBackdrop from '../components/SeaBackdrop'
 
+/**
+ * Attribution for the sign-in backdrop, shown bottom-right. Set this whenever you replace
+ * `public/media/login.jpg`. For the stitched satellite view that ships in the repo it is:
+ *   'Chennai–Ennore · imagery © Esri, Maxar, Earthstar Geographics'
+ */
+const BACKDROP_CREDIT = ''
+
 export default function Login() {
   const { user, login } = useAuth()
   const navigate = useNavigate()
@@ -42,9 +49,13 @@ export default function Login() {
           boundary leaves a hard vertical seam down the middle of the sea. */}
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(8,14,20,0.8)_0%,rgba(8,14,20,0.3)_34%,transparent_58%)]" />
 
-      {/* Credit for the backdrop imagery, at the page corner. Esri's licence requires it be
-          shown wherever their tiles are; replace the text if you swap the image. */}
-      <div className="pointer-events-none absolute bottom-2 right-3 z-10 font-mono text-[10px] text-white/35">Chennai–Ennore · imagery © Esri, Maxar, Earthstar Geographics</div>
+      {/* Credit for whatever is behind the page. Keep this in step with public/media/login.jpg:
+          the stitched satellite backdrop needs Esri's credit by licence, and a photograph needs
+          whatever its own licence asks for. Empty renders nothing, which is only correct when the
+          image genuinely needs no attribution. */}
+      {BACKDROP_CREDIT && (
+        <div className="pointer-events-none absolute bottom-2 right-3 z-10 font-mono text-[10px] text-white/35">{BACKDROP_CREDIT}</div>
+      )}
 
       <div className="relative grid min-h-dvh md:grid-cols-[1.15fr_1fr]">
       <aside className="relative hidden md:block">

@@ -2,32 +2,42 @@
 
 `web/src/components/SeaBackdrop.tsx` layers three things, each covering the one below if present.
 
-    login.jpg           the Chennai–Ennore coast. This is what normally shows.
+    login.jpg           the backdrop photo. This is what normally shows.
     login.webm / .mp4   optional looping clip; fades in over the still if you add one.
     (canvas)            a sea drawn in code, underneath both, so the page is never blank.
 
 ## Swapping the image
 
-Save any photo over `login.jpg` and it appears on next reload. Nothing else to change: the darken
-and desaturate live in CSS (`SeaBackdrop.tsx`), not baked into the file, so a replacement is graded
-the same way and the sign-in panel stays readable over it. Landscape, ideally 2000 px or wider.
+    python scripts/fit_login_bg.py ~/Desktop/your-photo.jpg
 
-**Check you are allowed to use it.** Press photographs of real spills are almost always
-copyrighted, and this is going in front of judges. Safe sources: your own captures, satellite
-imagery you stitch yourself (see below), NASA/ESA/Copernicus, or anything explicitly CC0.
+That fits the **whole** photo to a 16:9 frame and fills the leftover margin with a blurred,
+enlarged copy of itself, so nothing is cropped out — a wide page would otherwise cut a third off a
+5:4 aerial, usually including the ship. It writes `login.jpg`; reload the page and it is there.
 
-## login.jpg (current)
+Darkening and desaturation are **not** baked into the file. `SeaBackdrop` applies them in CSS, so
+any photo you drop in is graded the same way and the sign-in panel stays readable.
 
-Esri World Imagery — the same tile service the console's maps use — for 80.12–80.62 E, 12.94–13.34 N
-at zoom 13, stitched into one image, then softened and graded down so the sign-in panel reads over
-it. The blur is not only for depth of field: Esri mosaics captures of different dates along this
-coast, and the joins show as rectangular tonal steps.
+Two things to check each time:
 
-Regenerate with `scripts/stitch_login_bg.py`. **Credit is required** and is rendered bottom-right of
-the page; keep it if you change the image.
+- **Set the credit.** `BACKDROP_CREDIT` at the top of `src/pages/Login.tsx` is rendered
+  bottom-right. An empty string shows nothing, which is only right when the image needs no
+  attribution. A *wrong* credit is worse than none.
+- **Check you may use it.** Press photographs of real spills are almost always copyrighted, and
+  this goes in front of judges. Safe: your own captures, self-stitched satellite imagery (below),
+  NASA / ESA / Copernicus, or explicit CC0.
+
+## The satellite alternative
+
+    python scripts/stitch_login_bg.py
+
+Rebuilds the backdrop from Esri World Imagery — the same tile service the console's maps use — for
+the Chennai–Ennore sector, 80.12–80.62 E / 12.94–13.34 N at zoom 13. It is blurred, which also
+hides the rectangular tonal steps where Esri joins captures of different dates along this coast.
+If you use it, set `BACKDROP_CREDIT` to:
+
+    Chennai–Ennore · imagery © Esri, Maxar, Earthstar Geographics
 
 ## A clip instead
 
-Keep it short (8–15 s), silent and seamlessly looping — it is muted and looped. Keep it small: there
-is no git-lfs here and the demo has to work with the network off, so it is bundled, not streamed.
-Under ~4 MB. Crop to roughly 16:9; it is drawn with `object-fit: cover`.
+Short (8–15 s), silent, seamlessly looping — it is muted and looped. Keep it small: no git-lfs here
+and the demo has to work with the network off, so it is bundled, not streamed. Under ~4 MB, 16:9.
