@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { ArrowRight, Crosshair, MapPin } from 'lucide-react'
 import { api } from '../lib/api'
 import { fmtAgo, fmtKm2, fmtUtc } from '../lib/format'
+import { cn } from '../lib/cn'
 import { Empty, EngineBadge, KpiTile, PageHeader, Panel, Spinner, StatusChip, TierChip } from '../components/Primitives'
 import SpillGlobe from '../components/SpillGlobe'
 import RealMap, { type MapPoint } from '../components/RealMap'
@@ -25,6 +26,15 @@ function spillName(i: Incident): string {
   const [lon, lat] = i.centroid
   return `${code} ${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'} ${Math.abs(lon).toFixed(2)}°${lon >= 0 ? 'E' : 'W'}`
 }
+
+const SECTIONS = [
+  { id: 'globe', label: 'Where the slicks are' },
+  { id: 'metrics', label: 'Key metrics' },
+  { id: 'incidents', label: 'Open incidents' },
+  { id: 'zones', label: 'Watch zones' },
+  { id: 'trend', label: 'Trend' },
+  { id: 'activity', label: 'Recent activity' },
+] as const
 
 export default function Dashboard() {
   const overview = useQuery({ queryKey: ['overview'], queryFn: api.overview })
@@ -108,22 +118,56 @@ export default function Dashboard() {
       }]
     : []
 
+  // Section nav: buttons jump between the page's boxes instead of scrolling to find them.
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+  const setSectionRef = (id: string) => (el: HTMLElement | null) => { sectionRefs.current[id] = el }
+  const [activeSection, setActiveSection] = useState<string>(SECTIONS[0].id)
+  const goToSection = (id: string) => sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
+  useEffect(() => {
+    if (!o) return
+    const els = SECTIONS.map((s) => sectionRefs.current[s.id]).filter((el): el is HTMLElement => !!el)
+    if (els.length === 0) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+        if (visible[0]) setActiveSection(visible[0].target.id)
+      },
+      { root: null, rootMargin: '-72px 0px -70% 0px', threshold: 0 },
+    )
+    els.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [o])
+
   return (
     <div className="p-6">
       <PageHeader eyebrow="Overview" title="Dashboard" description="What needs attention across all watch zones. Times in UTC." />
       {!o ? <Spinner label="Loading overview" /> : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiTile label="Open incidents" value={o.open_incidents} tone={o.open_incidents > 0 ? 'accent' : 'default'} hint="detected or under investigation" />
-            <KpiTile label="Slicks this month" value={o.slicks_this_month} hint="confirmed by an officer" />
-            <KpiTile label="Area this month" value={o.area_km2_this_month.toFixed(1)} unit="km²" hint="sum of confirmed slick polygons" />
-            <KpiTile label="Vessels tracked" value={o.vessels_tracked} hint="live AIS inside watch zones" />
-          </div>
+          {/* Buttons to jump between the page's boxes, in place of hunting with the scrollbar. */}
+          <nav className="mb-4 flex flex-wrap gap-1 rounded-lg bg-surface-2/70 p-1" aria-label="Jump to section">
+            {SECTIONS.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => goToSection(s.id)}
+                className={cn(
+                  'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                  activeSection === s.id ? 'bg-ink text-bg' : 'text-ink-2 hover:bg-surface hover:text-ink',
+                )}
+              >
+                {s.label}
+              </button>
+            ))}
+          </nav>
 
-          <div className="mt-5">
-            <Panel
-              title="Where the slicks are"
-              actions={
+          {/* The globe is the first thing an officer should see, full width; key metrics
+              follow right below it. */}
+          <Panel
+            id="globe"
+            ref={setSectionRef('globe')}
+            title="Where the slicks are"
+            actions={
                 selected ? (
                   <button type="button" onClick={() => selectIncident(null)} className="text-xs text-sea hover:underline">
                     Clear selection
@@ -274,10 +318,16 @@ export default function Dashboard() {
                 </div>
               </div>
             </Panel>
+
+          <div id="metrics" ref={setSectionRef('metrics')} className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiTile label="Open incidents" value={o.open_incidents} tone={o.open_incidents > 0 ? 'accent' : 'default'} hint="detected or under investigation" />
+            <KpiTile label="Slicks this month" value={o.slicks_this_month} hint="confirmed by an officer" />
+            <KpiTile label="Area this month" value={o.area_km2_this_month.toFixed(1)} unit="km²" hint="sum of confirmed slick polygons" />
+            <KpiTile label="Vessels tracked" value={o.vessels_tracked} hint="live AIS inside watch zones" />
           </div>
 
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-            <Panel title="Open incidents" actions={<Link to="/app/incidents" className="text-xs text-sea hover:underline">All incidents</Link>} bodyClassName="p-0">
+            <Panel id="incidents" ref={setSectionRef('incidents')} title="Open incidents" actions={<Link to="/app/incidents" className="text-xs text-sea hover:underline">All incidents</Link>} bodyClassName="p-0">
               {!incidents.data ? <div className="p-4"><Spinner /></div> : incidents.data.filter((i) => i.status !== 'closed').length === 0 ? <div className="p-4"><Empty title="No open incidents" /></div> : (
                 <ul className="divide-y divide-line">
                   {incidents.data.filter((i) => i.status !== 'closed').map((i) => (
@@ -313,7 +363,7 @@ export default function Dashboard() {
               )}
             </Panel>
 
-            <Panel title="Watch zones" bodyClassName="p-0">
+            <Panel id="zones" ref={setSectionRef('zones')} title="Watch zones" bodyClassName="p-0">
               <ul className="divide-y divide-line">
                 {o.zones.map((z) => (
                   <li key={z.id} className="flex items-center justify-between px-4 py-3">
@@ -332,7 +382,7 @@ export default function Dashboard() {
           </div>
 
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-            <Panel title="Slicks detected, last 14 days">
+            <Panel id="trend" ref={setSectionRef('trend')} title="Slicks detected, last 14 days">
               <div className="h-44">
                 <ResponsiveContainer>
                   <AreaChart data={o.trend} margin={{ top: 6, right: 6, bottom: 0, left: -24 }}>
@@ -350,7 +400,7 @@ export default function Dashboard() {
                 </ResponsiveContainer>
               </div>
             </Panel>
-            <Panel title="Recent activity" bodyClassName="p-0">
+            <Panel id="activity" ref={setSectionRef('activity')} title="Recent activity" bodyClassName="p-0">
               <ul className="divide-y divide-line">
                 {o.recent.map((a) => (
                   <li key={a.id} className="flex items-baseline gap-3 px-4 py-2.5 text-sm">

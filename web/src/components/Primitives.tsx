@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { forwardRef, type ReactNode } from 'react'
 import { AlertOctagon, AlertTriangle, CheckCircle2, Cpu, Loader2, Waves } from 'lucide-react'
 import { cn } from '../lib/cn'
 import { STATUS_LABEL, TIER_LABEL } from '../lib/format'
@@ -51,11 +51,11 @@ export function StatusChip({ status }: { status: IncidentStatus }) {
   return <span className={cn('inline-flex rounded border px-1.5 py-0.5 font-mono text-[11px] font-medium uppercase tracking-wide', cls)}>{STATUS_LABEL[status]}</span>
 }
 
-export function Panel({ title, actions, children, className, bodyClassName }: {
-  title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; bodyClassName?: string
-}) {
+export const Panel = forwardRef<HTMLElement, {
+  title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; bodyClassName?: string; id?: string
+}>(function Panel({ title, actions, children, className, bodyClassName, id }, ref) {
   return (
-    <section className={cn('flex min-h-0 flex-col rounded-lg border border-line bg-surface shadow-[0_1px_2px_rgba(20,16,12,0.04)]', className)}>
+    <section ref={ref} id={id} className={cn('flex min-h-0 flex-col rounded-lg border border-line bg-surface shadow-[0_1px_2px_rgba(20,16,12,0.04)]', className)}>
       {(title || actions) && (
         <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
           {typeof title === 'string' ? <h3 className="text-[15px] font-semibold tracking-wide text-ink">{title}</h3> : title}
@@ -65,7 +65,7 @@ export function Panel({ title, actions, children, className, bodyClassName }: {
       <div className={cn('min-h-0 flex-1 p-4', bodyClassName)}>{children}</div>
     </section>
   )
-}
+})
 
 export function PageHeader({ eyebrow, title, description, actions }: {
   eyebrow?: string; title: string; description?: string; actions?: ReactNode
@@ -82,11 +82,11 @@ export function PageHeader({ eyebrow, title, description, actions }: {
   )
 }
 
-export function KpiTile({ label, value, unit, hint, tone = 'default' }: {
-  label: string; value: string | number; unit?: string; hint?: string; tone?: 'default' | 'accent' | 'crit'
+export function KpiTile({ label, value, unit, hint, tone = 'default', className }: {
+  label: string; value: string | number; unit?: string; hint?: string; tone?: 'default' | 'accent' | 'crit'; className?: string
 }) {
   return (
-    <div className="relative overflow-hidden rounded-lg border border-line bg-surface px-4 py-3">
+    <div className={cn('relative overflow-hidden rounded-lg border border-line bg-surface px-4 py-3', className)}>
       <span className={cn('absolute inset-y-0 left-0 w-[3px]', tone === 'accent' ? 'bg-accent' : tone === 'crit' ? 'bg-crit' : 'bg-line')} aria-hidden />
       <div className="label-caps">{label}</div>
       <div className={cn('mt-1 flex items-baseline gap-1.5 font-display text-[30px] font-semibold leading-none tnum',
