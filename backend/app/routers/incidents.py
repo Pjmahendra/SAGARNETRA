@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from ..db import out
 from ..deps import Db, Officer
 from ..services import audit, incidents
+from ..services.sectors import zone_filter
 
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
 
@@ -27,9 +28,9 @@ class EventIn(BaseModel):
 
 
 @router.get("")
-async def list_incidents(_: Officer, db: Db):
+async def list_incidents(user: Officer, db: Db):
     docs = (
-        await db.incidents.find({}, {"ranking": 0, "events": 0, "polygon": 0, "origin_zones": 0})
+        await db.incidents.find(zone_filter(user), {"ranking": 0, "events": 0, "polygon": 0, "origin_zones": 0})
         .sort("detected_at", -1)
         .to_list(500)
     )

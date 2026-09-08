@@ -13,6 +13,19 @@ from shapely.geometry import Point, shape
 from ..db import out
 
 
+def zone_filter(user: dict) -> dict:
+    """Mongo filter restricting a query to the officer's own sector.
+
+    An officer sees only the zones they are assigned; an admin, and an officer with no zones set,
+    sees everything. This is what keeps live North Sea traffic and the Indian scenario apart: they
+    share the same collections and are separated by who is asking.
+    """
+    zone_ids = user.get("zone_ids") or []
+    if user.get("role") == "admin" or not zone_ids:
+        return {}
+    return {"zone_id": {"$in": zone_ids}}
+
+
 def _center_bbox(geometry: dict | None) -> tuple[list[float] | None, list[float] | None]:
     if not geometry or not geometry.get("coordinates"):
         return None, None

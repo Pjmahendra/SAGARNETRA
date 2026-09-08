@@ -26,6 +26,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import websockets
+from shapely.geometry import Point, shape
 
 from app.config import get_settings
 from app.db import connect, ensure_indexes
@@ -141,24 +142,31 @@ def parse_bbox(s: str) -> list[list[float]]:
     return [[south, west], [north, east]]
 
 
-async def zone_boxes(db: Any) -> list[list[list[float]]]:
-    """AISStream wants [[[south, west], [north, east]], ...] — latitude first, unlike GeoJSON."""
-    boxes: list[list[list[float]]] = []
+async def load_zones(db: Any) -> list[tuple[str, Any, list[list[float]]]]:
+    """(zone id, polygon, subscribe box) per watch zone.
+
+    AISStream wants [[[south, west], [north, east]], ...] — latitude first, unlike GeoJSON. The
+    polygon is kept so each report can be filed under the zone that actually contains it: the box
+    is the polygon's bounding rectangle, so a report inside the box can still be outside the zone.
+    """
+    zones: list[tuple[str, Any, list[list[float]]]] = []
     async for z in db.watch_zones.find({}, {"geometry": 1, "name": 1}):
-        ring = (z.get("geometry") or {}).get("coordinates", [[]])[0]
+        geom = z.get("geometry")
+        ring = (geom or {}).get("coordinates", [[]])[0]
         if not ring:
             continue
         lons = [p[0] for p in ring]
         lats = [p[1] for p in ring]
-        boxes.append([[min(lats), min(lons)], [max(lats), max(lons)]])
-        log.info("watching %s", z.get("name"))
-    return boxes
+        zones.append((z["_id"], shape(geom), [[min(lats), min(lons)], [max(lats), max(lons)]]))
+        log.info("watching %s (%s)", z.get("name"), z["_id"])
+    return zones
 
 
 class Collector:
-    def __init__(self, db: Any, dry_run: bool = False) -> None:
+    def __init__(self, db: Any, dry_run: bool = False, zones: list | None = None) -> None:
         self.db = db
         self.dry_run = dry_run
+        self.zones = zones or []
         self.positions: list[dict] = []
         self.statics: dict[str, dict] = {}
         self.latest: dict[str, dict] = {}
@@ -167,6 +175,14 @@ class Collector:
         self.messages = 0
         self.written = 0
         self.started = datetime.now(UTC)
+
+    def zone_of(self, lon: float, lat: float) -> str | None:
+        """Which watch zone this report falls in, so an officer only sees their own sector."""
+        pt = Point(lon, lat)
+        for zone_id, poly, _ in self.zones:
+            if poly.contains(pt):
+                return zone_id
+        return None
 
     def on_message(self, msg: dict) -> None:
         meta = msg.get("MetaData") or {}
@@ -196,9 +212,11 @@ class Collector:
             cog = round(float(cog)) % 360 if isinstance(cog, (int, float)) and cog < 360 else 0
             hdg = body.get("TrueHeading")
             hdg = hdg if isinstance(hdg, int) and hdg < 360 else cog
+            zone_id = self.zone_of(lon, lat)
             self.positions.append({
                 "mmsi": mmsi,
                 "ts": now,
+                "zone_id": zone_id,
                 "geometry": {"type": "Point", "coordinates": [round(lon, 6), round(lat, 6)]},
                 "sog": sog,
                 "cog": cog,
@@ -208,7 +226,8 @@ class Collector:
                 "source": "live",
             })
             self.latest[mmsi] = {
-                "position": [round(lon, 6), round(lat, 6)], "sog_kn": sog, "cog_deg": cog, "last_seen": now,
+                "position": [round(lon, 6), round(lat, 6)], "sog_kn": sog, "cog_deg": cog,
+                "last_seen": now, "zone_id": zone_id,
             }
 
         elif kind == "ShipStaticData":
@@ -247,6 +266,7 @@ class Collector:
                 "type_group": "other",
                 "length_m": None,
                 "destination": None,
+                "zone_id": None,
                 "position": [0.0, 0.0],
                 "sog_kn": 0.0,
                 "cog_deg": 0,
@@ -282,11 +302,19 @@ async def run(dry_run: bool, seconds: float = 0.0, bboxes: list | None = None) -
     # and the US and effectively absent over Indian waters (measured 2026-09-08: 0 reports/min off
     # Gujarat against 4,458/min off northern Europe). --bbox therefore exists so the recorder can be
     # pointed at water that actually has receivers; the default stays the app's own watch zones.
-    boxes = bboxes or await zone_boxes(db)
+    zones = await load_zones(db)
+    if bboxes:
+        # Ad-hoc probing: reports get no zone_id, so they stay invisible to zone-scoped officers
+        # rather than silently appearing in somebody's sector.
+        boxes = bboxes
+        zones = []
+        log.warning("--bbox given: recording outside the watch zones, reports will have no zone")
+    else:
+        boxes = [b for _, _, b in zones]
     if not boxes:
         raise SystemExit("No watch zones in the database. Run `python -m scripts.seed_db` first.")
 
-    c = Collector(db, dry_run=dry_run)
+    c = Collector(db, dry_run=dry_run, zones=zones)
     subscribe = json.dumps({
         "APIKey": key,
         "BoundingBoxes": boxes,

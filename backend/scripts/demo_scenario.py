@@ -117,7 +117,32 @@ ZONES = [
             "coordinates": [[[80.2, 12.8], [80.9, 12.8], [80.9, 13.6], [80.2, 13.6], [80.2, 12.8]]],
         },
     },
+    {
+        # The live-AIS zone. AISStream's free feed is community shore receivers, which are dense
+        # here and absent off India (see DECISIONS 2026-09-08), so this is the only watch zone
+        # where `scripts.ais_collector` actually records real vessels. It is also a genuine
+        # oil-discharge enforcement area: Bonn Agreement aerial surveillance covers exactly this
+        # water. Kept as a separate zone with its own officer so real live traffic is never mixed
+        # into the Indian sectors, which run on the reconstructed scenario.
+        # Deliberately the Dover Strait rather than the whole North Sea: the busiest shipping lane
+        # in the world, dense enough to be convincing and small enough that "vessels in my sector"
+        # stays a number an officer could actually work through. A basin-sized box returned 5,600
+        # ships, which is a database dump, not a sector.
+        "_id": "z-nsc",
+        "name": "Dover Strait",
+        "region": "Europe",
+        "last_scene_at": datetime(2026, 9, 7, 5, 42, tzinfo=UTC),
+        "vessels_now": 0,
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [[[0.5, 50.3], [2.6, 50.3], [2.6, 51.5], [0.5, 51.5], [0.5, 50.3]]],
+        },
+    },
 ]
+
+#: Zones whose vessels come from the live AIS recorder rather than the seeded scenario.
+LIVE_ZONE_IDS = ["z-nsc"]
+INDIAN_ZONE_IDS = ["z-guj", "z-mum", "z-che"]
 
 
 def _rank(v: dict, f: dict) -> dict:

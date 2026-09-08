@@ -8,7 +8,9 @@ from typing import Any, Literal
 from pydantic import BaseModel, EmailStr, Field
 
 Role = Literal["admin", "officer"]
-Region = Literal["West", "North-West", "East", "North-East", "A&N"]
+# The five Indian Coast Guard regions, plus "Europe" for the North Sea liaison account: that is
+# the one sector where AISStream has receiver coverage, so it is where live AIS is demonstrated.
+Region = Literal["West", "North-West", "East", "North-East", "A&N", "Europe"]
 
 
 class UserOut(BaseModel):

@@ -28,13 +28,23 @@ from ml import SAMPLES_DIR  # noqa: E402
 from ml.infer import Detector  # noqa: E402
 from ml.preprocess import load_tile  # noqa: E402
 from pymongo import ReplaceOne  # noqa: E402
+from shapely.geometry import Point, shape  # noqa: E402
 
 from app.config import get_settings  # noqa: E402
 from app.db import connect, ensure_indexes  # noqa: E402
 from app.services import drift, incidents, weather  # noqa: E402
 from app.services.ranking import LOOKBACK_H  # noqa: E402
 from app.services.users import create_user, find_by_email  # noqa: E402
-from scripts.demo_scenario import INCIDENTS, REPORTS, SAMPLES, ZONES, build_positions, vessel_docs  # noqa: E402
+from scripts.demo_scenario import (  # noqa: E402
+    INCIDENTS,
+    INDIAN_ZONE_IDS,
+    LIVE_ZONE_IDS,
+    REPORTS,
+    SAMPLES,
+    ZONES,
+    build_positions,
+    vessel_docs,
+)
 
 STATIC_COLLECTIONS = {"watch_zones": ZONES, "incidents": INCIDENTS, "samples": SAMPLES, "reports": REPORTS}
 DEMO_SAMPLE = "guj-01"
@@ -64,14 +74,34 @@ async def seed_accounts(db) -> dict:
             "officer",
             "ICG Region West, Porbandar",
             "North-West",
-            ["z-guj", "z-mum"],
+            INDIAN_ZONE_IDS,
+        ),
+        # A second officer whose sector is the one zone with real AIS receiver coverage, so the
+        # demo can show live traffic and the reconstructed Indian case side by side without ever
+        # mixing them: each officer sees only their own zones.
+        (
+            "officer.eu@sagarnetra.in",
+            "Lt. Cdr. K. Nair",
+            os.getenv("SEED_OFFICER_PASSWORD", "Officer@123"),
+            "officer",
+            "Bonn Agreement liaison, North Sea",
+            "Europe",
+            LIVE_ZONE_IDS,
         ),
     ]
     officer = None
     for email, name, pw, role, org, region, zones in accounts:
         doc = await find_by_email(db, email)
         if doc:
-            print(f"users: {email} exists, left unchanged")
+            # Passwords and activity are the operator's, so they are never touched. Sector
+            # assignment is this script's to own: now that the endpoints actually scope by zone,
+            # an account left on a stale zone list silently loses part of its sector.
+            if doc.get("zone_ids") != zones or doc.get("region") != region:
+                await db.users.update_one({"_id": doc["_id"]}, {"$set": {"zone_ids": zones, "region": region}})
+                doc = await find_by_email(db, email)
+                print(f"users: {email} exists, sector updated to {zones or 'all zones'}")
+            else:
+                print(f"users: {email} exists, left unchanged")
         else:
             doc = await create_user(
                 db,
@@ -107,8 +137,15 @@ async def seed_demo_incident(db, officer: dict) -> None:
     print(f"demo: weather={wx.source}, t-12h origin at {zones[1]['center']}, bearing {zones[1]['bearing_deg']}")
     positions = build_positions(zones=zones, centroid=centroid, heading=det.heading_deg, acq=acq)
     await db.ais_positions.delete_many({"source": "scenario"})
+    # File the scenario ships under the incident's own zone and mark them as scenario, so the
+    # zone-scoped endpoints treat them exactly like live vessels and nothing has to special-case
+    # seeded data. The Gujarat officer sees these; the North Sea officer never does.
+    zone_id = next(z["_id"] for z in ZONES if shape(z["geometry"]).contains(Point(*centroid)))
+    positions = [{**p, "zone_id": zone_id} for p in positions]
+    vessels = [{**v, "zone_id": zone_id, "source": "scenario"} for v in vessel_docs(positions)]
     await upsert(db, "ais_positions", positions)
-    await upsert(db, "vessels", vessel_docs(positions))
+    await upsert(db, "vessels", vessels)
+    print(f"demo: scenario vessels filed under {zone_id}")
 
     # the detection an officer would have confirmed, then the incident exactly as the API creates it
     await db.incidents.delete_many({"is_demo": True, "_id": {"$nin": [i["_id"] for i in INCIDENTS]}})

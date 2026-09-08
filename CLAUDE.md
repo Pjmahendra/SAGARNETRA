@@ -60,7 +60,10 @@ docker compose up -d                             # local MongoDB on 27017 (or: b
 python -m scripts.ais_collector --dry-run --seconds 60          # prove data flows, write nothing
 # NOTE: AISStream has ~zero receiver coverage in Indian waters (see DECISIONS 2026-09-08).
 # Use --bbox S,W,N,E to record water that has receivers, e.g. the North Sea / English Channel:
-caffeinate -i nohup python -m scripts.ais_collector --bbox 50,-6,58,10 > ais.log 2>&1 &
+# The Dover Strait zone (z-nsc, officer.eu@sagarnetra.in) is the one sector with coverage;
+# the default subscribes to every watch zone, so no --bbox is needed for the demo:
+caffeinate -i nohup python -m scripts.ais_collector > ais.log 2>&1 &
+# Vessels age out of a sector 2 h after their last report, so keep it running during the demo.
 # undo a recording:  db.vessels.deleteMany({source:"live"}); db.ais_positions.deleteMany({source:"live"})
 ```
 
