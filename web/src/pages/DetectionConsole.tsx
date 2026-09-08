@@ -113,26 +113,40 @@ export default function DetectionConsole() {
           </label>
         </Panel>
 
-        <Panel title="Model" bodyClassName="p-3">
-          {!model.data ? <Spinner /> : model.data.metrics.length === 0 ? (
-            <div className="text-xs text-ink-2">
-              <div className="mb-1 flex items-center gap-2"><EngineBadge engine={model.data.engine} /></div>
-              {model.data.engine === 'heuristic' ? 'No trained model on this server yet. The classic dark-spot method answers and is labelled as such.' : `Serving ${model.data.model_name}.`}
+        <Panel title="Models · 5-way bake-off" bodyClassName="p-3">
+          {!model.data ? <Spinner /> : (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <EngineBadge engine={model.data.engine} />
+                <span className="text-[11px] text-ink-3">{model.data.engine === 'unet' ? `serving ${model.data.model_name}` : 'heuristic fallback active'}</span>
+              </div>
+              <table className="w-full text-[11px]">
+                <thead><tr className="text-left font-mono uppercase text-ink-3"><th className="pb-1">Model</th><th className="pb-1 text-right">mIoU</th><th className="pb-1 text-right">Oil</th><th className="pb-1 text-right">Look-alike</th></tr></thead>
+                <tbody>
+                  {model.data.metrics.map((m) => {
+                    const served = m.name === model.data!.model_name
+                    const trained = typeof m.miou === 'number'
+                    return (
+                      <tr key={m.name} className={served ? 'font-semibold text-ink' : 'text-ink-2'}>
+                        <td className="py-0.5">{served ? '▶ ' : ''}{m.display ?? m.name}</td>
+                        {trained ? (
+                          <>
+                            <td className="py-0.5 text-right font-mono tnum">{(m.miou! * 100).toFixed(1)}</td>
+                            <td className="py-0.5 text-right font-mono tnum">{((m.iou?.oil ?? 0) * 100).toFixed(0)}</td>
+                            <td className="py-0.5 text-right font-mono tnum">{((m.iou?.lookalike ?? 0) * 100).toFixed(0)}</td>
+                          </>
+                        ) : (
+                          <td colSpan={3} className="py-0.5 text-right font-mono text-ink-3">pending training</td>
+                        )}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              {model.data.engine === 'heuristic' && (
+                <p className="text-[11px] text-ink-3">Trained ONNX weights not on this server yet — per-model IoU fills in after the Colab bake-off; the heuristic answers meanwhile.</p>
+              )}
             </div>
-          ) : (
-            <table className="w-full text-[11px]">
-              <thead><tr className="text-left font-mono uppercase text-ink-3"><th className="pb-1">Model</th><th className="pb-1 text-right">mIoU</th><th className="pb-1 text-right">Oil</th><th className="pb-1 text-right">Look-alike</th></tr></thead>
-              <tbody>
-                {model.data.metrics.map((m) => (
-                  <tr key={m.name} className={m.name === model.data!.model_name ? 'text-ink' : 'text-ink-2'}>
-                    <td className="py-0.5">{m.name}</td>
-                    <td className="py-0.5 text-right font-mono tnum">{(m.miou * 100).toFixed(1)}</td>
-                    <td className="py-0.5 text-right font-mono tnum">{(m.iou.oil * 100).toFixed(0)}</td>
-                    <td className="py-0.5 text-right font-mono tnum">{(m.iou.lookalike * 100).toFixed(0)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           )}
         </Panel>
       </div>

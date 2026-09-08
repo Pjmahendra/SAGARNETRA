@@ -207,7 +207,7 @@ export type LookalikeReason = 'wind_shadow' | 'algal_bloom' | 'rain_cell' | 'low
 export interface ModelInfo {
   engine: Engine
   model_name: string | null
-  metrics: { name: string; miou: number; iou: Record<string, number>; params_m?: number; cpu_ms?: number }[]
+  metrics: { name: string; display?: string; miou?: number; iou?: Record<string, number>; params_m?: number; cpu_ms?: number; status?: string }[]
 }
 
 export interface Report {

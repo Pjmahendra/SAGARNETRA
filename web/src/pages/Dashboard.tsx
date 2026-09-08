@@ -50,11 +50,14 @@ export default function Dashboard() {
   // from immediately undoing the forward sync's own setZone call.
   const skipNextZoneSync = useRef(false)
   const selectIncident = (id: string | null) => {
+    const inc = id ? all.find((i) => i.id === id) : null
+    // Not a confirmed incident yet (still a raw detection) — send the officer to the console to run the
+    // models on it and inspect the spill, rather than showing an evidence card it doesn't have.
+    if (inc && inc.status === 'detected') { navigate('/app/detect'); return }
     if (zoomTimer.current) { clearTimeout(zoomTimer.current); zoomTimer.current = null }
     setSelectedId(id)
     setPhase('globe')
     if (id) zoomTimer.current = window.setTimeout(() => setPhase('map'), ZOOM_MS)
-    const inc = id ? all.find((i) => i.id === id) : null
     const z = inc ? zoneOf(inc.zone) : null
     if (z) { skipNextZoneSync.current = true; setZone(z.id) }
   }

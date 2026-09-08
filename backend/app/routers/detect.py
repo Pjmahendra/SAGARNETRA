@@ -21,6 +21,16 @@ from ..services import audit, sectors
 router = APIRouter(prefix="/api/detect", tags=["detect"])
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
+# The five bake-off candidates (mirrors ml/models.py). Shown on the console so the officer sees the whole lineup;
+# real per-model IoU/mIoU replace these rows once training writes ml/metrics.json (see docs/DECISIONS.md 2026-09-08).
+CANDIDATE_MODELS = [
+    {"name": "unet_scratch", "display": "U-Net (from scratch)", "status": "pending"},
+    {"name": "unet_resnet34", "display": "U-Net + ResNet-34", "status": "pending"},
+    {"name": "unetpp_resnet34", "display": "U-Net++ + ResNet-34", "status": "pending"},
+    {"name": "deeplabv3p_resnet50", "display": "DeepLabV3+ + ResNet-50", "status": "pending"},
+    {"name": "fpn_effb3", "display": "FPN + EfficientNet-B3", "status": "pending"},
+]
+
 
 def get_detector(request: Request) -> Detector:
     det = getattr(request.app.state, "detector", None)
@@ -61,7 +71,12 @@ async def sample_image(sample_id: str):
 @router.get("/model")
 async def model_info(_: Officer, request: Request):
     det = get_detector(request)
-    return {"engine": det.engine, "model_name": det.model.name if det.model else None, "metrics": load_metrics()}
+    metrics = load_metrics()
+    return {
+        "engine": det.engine,
+        "model_name": det.model.name if det.model else None,
+        "metrics": metrics or CANDIDATE_MODELS,  # show the lineup until trained metrics land
+    }
 
 
 @router.post("")

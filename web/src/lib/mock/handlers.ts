@@ -49,10 +49,12 @@ export async function mockHandle<T>(method: string, path: string, body?: unknown
   if (key === 'GET /api/incidents') return INCIDENTS as T
   if (key === 'GET /api/vessels/live') return VESSELS as T
   if (key === 'GET /api/detect/samples') return SAMPLES as T
-  if (key === 'GET /api/detect/model') return { engine: 'unet', model_name: 'unet_sar (mock)', metrics: [
-    { name: 'Custom U-Net', miou: 0.641, iou: { sea: 0.96, oil: 0.55, lookalike: 0.42, ship: 0.61, land: 0.92 }, params_m: 7.8, cpu_ms: 410 },
-    { name: 'U-Net + ResNet-34', miou: 0.672, iou: { sea: 0.97, oil: 0.59, lookalike: 0.47, ship: 0.66, land: 0.93 }, params_m: 24.4, cpu_ms: 620 },
-    { name: 'DeepLabV3+ R50', miou: 0.681, iou: { sea: 0.97, oil: 0.61, lookalike: 0.49, ship: 0.64, land: 0.94 }, params_m: 40.3, cpu_ms: 1150 },
+  if (key === 'GET /api/detect/model') return { engine: 'unet', model_name: 'fpn_effb3', metrics: [
+    { name: 'unet_scratch', display: 'U-Net (from scratch)', miou: 0.641, iou: { sea: 0.96, oil: 0.55, lookalike: 0.42, ship: 0.61, land: 0.92 }, params_m: 7.8, cpu_ms: 410 },
+    { name: 'unet_resnet34', display: 'U-Net + ResNet-34', miou: 0.672, iou: { sea: 0.97, oil: 0.59, lookalike: 0.47, ship: 0.66, land: 0.93 }, params_m: 24.4, cpu_ms: 620 },
+    { name: 'unetpp_resnet34', display: 'U-Net++ + ResNet-34', miou: 0.679, iou: { sea: 0.97, oil: 0.60, lookalike: 0.48, ship: 0.65, land: 0.94 }, params_m: 26.1, cpu_ms: 720 },
+    { name: 'deeplabv3p_resnet50', display: 'DeepLabV3+ + ResNet-50', miou: 0.681, iou: { sea: 0.97, oil: 0.61, lookalike: 0.49, ship: 0.64, land: 0.94 }, params_m: 40.3, cpu_ms: 1150 },
+    { name: 'fpn_effb3', display: 'FPN + EfficientNet-B3', miou: 0.686, iou: { sea: 0.97, oil: 0.62, lookalike: 0.50, ship: 0.67, land: 0.95 }, params_m: 17.6, cpu_ms: 540 },
   ] } as T
   if (key === 'GET /api/reports') return REPORTS as T
 
