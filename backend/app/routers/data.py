@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from ..db import out
 from ..deps import Db, Officer
-from ..services.sectors import zone_filter
+from ..services.sectors import vessels_now, zone_filter
 
 router = APIRouter(prefix="/api", tags=["data"])
 
@@ -25,7 +25,13 @@ async def overview(user: Officer, db: Db):
     )
     month = [i for i in incidents if i["detected_at"] >= month_start]
     zone_scope = {"_id": scope["zone_id"]} if scope else {}
-    zones = [out(z) for z in await db.watch_zones.find(zone_scope, {"geometry": 0}).sort("name", 1).to_list(200)]
+    # vessels_now is counted from the vessels themselves; the stored field was seeded and never
+    # updated, so it read 0 for a sector holding 189 real ships.
+    counts = await vessels_now(db)
+    zones = [
+        {**out(z), "vessels_now": counts.get(z["_id"], 0)}
+        for z in await db.watch_zones.find(zone_scope, {"geometry": 0}).sort("name", 1).to_list(200)
+    ]
     recent = [out(a) for a in await db.audit.find({"action": {"$ne": "login.failed"}}).sort("at", -1).to_list(8)]
     days = [(now - timedelta(days=13 - k)).date() for k in range(14)]
     trend = [

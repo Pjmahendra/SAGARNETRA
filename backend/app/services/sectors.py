@@ -7,10 +7,46 @@ Powers the command view: each sector carries a globe center + map bbox, a count 
 
 from __future__ import annotations
 
+import logging
+from datetime import UTC, datetime, timedelta
+
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from shapely.geometry import Point, shape
 
 from ..db import out
+
+log = logging.getLogger(__name__)
+
+
+#: A live vessel counts as present only while its last report is this recent. Matches the window the
+#: Vessels page and the vessels_tracked KPI use, so no two numbers on screen can disagree.
+LIVE_WINDOW_H = 2
+
+
+async def vessels_now(db: AsyncIOMotorDatabase) -> dict[str, int]:
+    """Vessels currently in each zone, counted from the vessels themselves.
+
+    `watch_zones.vessels_now` is a seeded field that nothing ever updated, so it reported fiction:
+    zero for the Dover Strait while the recorder had 189 real ships in it, and 61 for Gujarat which
+    holds 8. Counting is one grouped query, and a number on an officer's screen has to be true.
+    """
+    cutoff = datetime.now(UTC) - timedelta(hours=LIVE_WINDOW_H)
+    pipeline = [
+        {"$match": {"zone_id": {"$ne": None},
+                    "$or": [{"source": {"$ne": "live"}}, {"last_seen": {"$gte": cutoff}}]}},
+        {"$group": {"_id": "$zone_id", "n": {"$sum": 1}}},
+    ]
+    try:
+        return {d["_id"]: d["n"] async for d in db.vessels.aggregate(pipeline)}
+    except Exception as e:  # mongomock lacks parts of the aggregation pipeline; never break a page
+        log.warning("vessels_now aggregate unavailable (%s); counting per zone", e)
+        out_counts: dict[str, int] = {}
+        async for z in db.watch_zones.find({}, {"_id": 1}):
+            out_counts[z["_id"]] = await db.vessels.count_documents({
+                "zone_id": z["_id"],
+                "$or": [{"source": {"$ne": "live"}}, {"last_seen": {"$gte": cutoff}}],
+            })
+        return out_counts
 
 
 def zone_filter(user: dict) -> dict:
@@ -68,6 +104,7 @@ def _detection_summary(d: dict) -> dict:
 
 
 async def list_sectors(db: AsyncIOMotorDatabase) -> list[dict]:
+    counts = await vessels_now(db)
     sectors = []
     async for z in db.watch_zones.find().sort("name", 1):
         center, bbox = _center_bbox(z.get("geometry"))
@@ -80,7 +117,7 @@ async def list_sectors(db: AsyncIOMotorDatabase) -> list[dict]:
             "pending": await db.detections.count_documents({"zone_id": z["_id"], "verification": None}),
             "open_incidents": await db.incidents.count_documents({"zone_id": z["_id"], "status": {"$ne": "closed"}}),
             "last_scene_at": z.get("last_scene_at"),
-            "vessels_now": z.get("vessels_now", 0),
+            "vessels_now": counts.get(z["_id"], 0),
         })
     return sectors
 

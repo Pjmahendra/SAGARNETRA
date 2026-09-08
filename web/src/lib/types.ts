@@ -182,6 +182,8 @@ export interface Vessel {
 
 export interface DetectSample {
   id: string
+  /** Sector the tile's footprint falls in. Absent means it sits outside every watch zone. */
+  zone_id?: string | null
   label: string
   scene: string
   acquired_at: string

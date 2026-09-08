@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
@@ -7,6 +7,7 @@ import { api, ApiError, assetUrl, MOCK_MODE } from '../lib/api'
 import { fmtCoord, fmtKm2, fmtUtc } from '../lib/format'
 import type { DetectResult, DetectSample, LookalikeReason, VerifyDecision } from '../lib/types'
 import { Button, Empty, EngineBadge, ErrorNote, PageHeader, Panel, Spinner } from '../components/Primitives'
+import { useUi } from '../store/ui'
 
 const CLASS_COLORS: Record<string, string> = { sea: '#1e6b74', oil: '#c7301f', lookalike: '#ae3a02', ship: '#ff6803', land: '#928c83' }
 const REASONS: { value: LookalikeReason; label: string }[] = [
@@ -37,9 +38,12 @@ type Source = { kind: 'sample'; sample: DetectSample } | { kind: 'upload'; file:
 
 export default function DetectionConsole() {
   const navigate = useNavigate()
+  const { zoneId } = useUi()
   const [params] = useSearchParams()  // deep link from the command view: ?sample=<id> preselects that tile
   const samples = useQuery({ queryKey: ['detect', 'samples'], queryFn: api.detectSamples })
   const model = useQuery({ queryKey: ['detect', 'model'], queryFn: api.modelInfo })
+  const overview = useQuery({ queryKey: ['overview'], queryFn: api.overview })
+  const zoneName = overview.data?.zones.find((z) => z.id === zoneId)?.name ?? 'this region'
   const [sampleId, setSampleId] = useState<string | null>(() => params.get('sample'))
   const [upload, setUpload] = useState<Extract<Source, { kind: 'upload' }> | null>(null)
   const [result, setResult] = useState<DetectResult | null>(null)
@@ -47,7 +51,16 @@ export default function DetectionConsole() {
   const [decision, setDecision] = useState<VerifyDecision | null>(null)
   const [reason, setReason] = useState<LookalikeReason>('wind_shadow')
 
-  const sample = samples.data?.find((s) => s.id === sampleId) ?? samples.data?.[0] ?? null
+  // Tiles for the region chosen in the top bar. An officer reviews their own sector's scenes;
+  // switching region switches the queue rather than scrolling past everyone else's water.
+  const zoneTiles = useMemo(
+    () => (samples.data ?? []).filter((s) => !s.zone_id || s.zone_id === zoneId),
+    [samples.data, zoneId],
+  )
+  // A deep link (?sample=) wins even when it belongs to another region, so a link from the
+  // dashboard never lands on an empty console.
+  const linked = samples.data?.find((s) => s.id === sampleId) ?? null
+  const sample = linked ?? zoneTiles[0] ?? null
   const source: Source | null = upload ?? (sample ? { kind: 'sample', sample } : null)
   const bbox = source?.kind === 'sample' ? source.sample.bbox : source?.bbox ?? null
 
@@ -93,7 +106,13 @@ export default function DetectionConsole() {
         <Panel title="Tiles" bodyClassName="p-2">
           {!samples.data ? <Spinner /> : (
             <ul className="space-y-1">
-              {samples.data.map((s) => (
+              {zoneTiles.length === 0 && (
+                <li className="rounded-md border border-dashed border-line px-3 py-4 text-center text-xs text-ink-3">
+                  No tiles for {zoneName}. Satellite coverage is bundled per sector; switch region in the top bar,
+                  or upload a tile below.
+                </li>
+              )}
+              {zoneTiles.map((s) => (
                 <li key={s.id}>
                   <button onClick={() => { setSampleId(s.id); setUpload(null); reset() }} disabled={s.available === false}
                     className={`w-full rounded-md border px-3 py-2 text-left text-sm hover:bg-surface-2 disabled:opacity-40 ${!upload && sample?.id === s.id ? 'border-accent/60 bg-surface-2' : 'border-line'}`}>
