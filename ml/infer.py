@@ -96,12 +96,16 @@ class Detector:
     def engine(self) -> str:
         return "unet" if self.model else "heuristic"
 
-    def detect(self, tile: Tile, bbox: BBox | None = None) -> DetectionResult:
+    def detect(self, tile: Tile, bbox: BBox | None = None, engine: str | None = None) -> DetectionResult:
+        # engine: "unet" | "heuristic" | None. None = the best available (U-Net if loaded, else heuristic).
+        # Explicit "heuristic" forces the classic path even when a model is present, so the console can compare both.
+        use_unet = self.model is not None if engine is None else (engine == "unet" and self.model is not None)
         t0 = time.perf_counter()
-        if self.model:
+        if use_unet:
             class_map, probs = self.model.segment(tile.gray)
         else:
             class_map, probs = heuristic.segment(tile.gray)
+        engine_used = "unet" if use_unet else "heuristic"
         ms = int((time.perf_counter() - t0) * 1000)
 
         oil = (class_map == OIL).astype(np.uint8)
@@ -140,7 +144,7 @@ class Detector:
                     polygon, area, centroid = [], 0.0, None  # no georeference: pixel results only
 
         return DetectionResult(
-            engine=self.engine,
+            engine=engine_used,
             confidence=round(confidence, 3),
             area_km2=area,
             centroid=centroid,
@@ -151,7 +155,7 @@ class Detector:
             class_pixels=counts,
             inference_ms=ms,
             mask_png=class_map_png_base64(class_map),
-            model_name=self.model.name if self.model else None,
+            model_name=self.model.name if use_unet else "dark-spot heuristic",
         )
 
 

@@ -127,7 +127,10 @@ export async function mockHandle<T>(method: string, path: string, body?: unknown
     const id = typeof b.sample_id === 'string' ? b.sample_id : 'guj-01'
     const r = DETECT_RESULTS[id]
     if (!r) throw new MockError(404, 'Sample not found')
-    return { ...r, has_spill: r.polygon.length > 2 } as T
+    // Heuristic mock reads a touch lower-confidence than the trained U-Net, so the two are distinguishable.
+    const eng = b.engine === 'heuristic' ? 'heuristic' : 'unet'
+    const conf = eng === 'heuristic' ? Math.max(0, r.confidence - 0.12) : r.confidence
+    return { ...r, engine: eng, model_name: eng === 'heuristic' ? 'dark-spot heuristic' : 'unet_scratch', confidence: +conf.toFixed(3), has_spill: r.polygon.length > 2 } as T
   }
   if (/^POST \/api\/detect\/[^/]+\/verify$/.test(key)) return { ok: true, ...(b as object) } as T
   let em = path.match(/^\/api\/incidents\/([^/]+)\/events$/)

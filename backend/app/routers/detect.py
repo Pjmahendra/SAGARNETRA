@@ -104,13 +104,15 @@ async def detect(
     bbox: Annotated[
         str | None, Form(description="JSON [west, south, east, north] for tiles without a GeoTIFF georeference")
     ] = None,
+    engine: Annotated[str | None, Form(description="'unet' | 'heuristic' — which model to run (default: best)")] = None,
 ):
     if file is None and not sample_id:
-        # also accept a JSON body {"sample_id": ...} for convenience
+        # also accept a JSON body {"sample_id": ..., "engine": ...} for convenience
         try:
             body = await request.json()
             sample_id = body.get("sample_id")
             bbox = json.dumps(body["bbox"]) if body.get("bbox") else None
+            engine = body.get("engine") or engine
         except Exception:
             pass
     if file is None and not sample_id:
@@ -161,7 +163,7 @@ async def detect(
         )
 
     det = get_detector(request)
-    result = det.detect(tile, parsed_bbox)
+    result = det.detect(tile, parsed_bbox, engine=engine)
 
     # File the detection under the sector it falls in, so it shows up in that sector's review queue.
     pt = result.centroid or (

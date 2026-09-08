@@ -86,9 +86,9 @@ export const api = {
   vesselsLive: () => request<Vessel[]>('GET', '/api/vessels/live'),
   vessel: (mmsi: string) => request<Vessel>('GET', `/api/vessels/${mmsi}`),
   detectSamples: () => request<DetectSample[]>('GET', '/api/detect/samples'),
-  detectSample: (sampleId: string) => request<DetectResult>('POST', '/api/detect', { sample_id: sampleId }),
-  detectUpload: (file: File, bbox?: [number, number, number, number]) => {
-    const f = new FormData(); f.append('file', file); if (bbox) f.append('bbox', JSON.stringify(bbox))
+  detectSample: (sampleId: string, engine?: string) => request<DetectResult>('POST', '/api/detect', { sample_id: sampleId, engine }),
+  detectUpload: (file: File, bbox?: [number, number, number, number], engine?: string) => {
+    const f = new FormData(); f.append('file', file); if (bbox) f.append('bbox', JSON.stringify(bbox)); if (engine) f.append('engine', engine)
     return request<DetectResult>('POST', '/api/detect', undefined, f)
   },
   verifyDetection: (id: string, decision: VerifyDecision, reason?: LookalikeReason, note?: string) =>

@@ -67,11 +67,14 @@ export default function DetectionConsole() {
   const bbox = source?.kind === 'sample' ? source.sample.bbox : source?.bbox ?? null
 
   const reset = () => { setResult(null); setDecision(null) }
+  const [engine, setEngine] = useState<'unet' | 'heuristic'>('unet')
   const run = useMutation({
-    mutationFn: (src: Source) => src.kind === 'sample' ? api.detectSample(src.sample.id) : api.detectUpload(src.file, src.bbox ?? undefined),
+    mutationFn: ({ src, eng }: { src: Source; eng: 'unet' | 'heuristic' }) =>
+      src.kind === 'sample' ? api.detectSample(src.sample.id, eng) : api.detectUpload(src.file, src.bbox ?? undefined, eng),
     onMutate: reset,
     onSuccess: setResult,
   })
+  const runWith = (eng: 'unet' | 'heuristic') => { if (source) { setEngine(eng); run.mutate({ src: source, eng }) } }
   const verify = useMutation({
     mutationFn: ({ id, d, r }: { id: string; d: VerifyDecision; r?: LookalikeReason }) => api.verifyDetection(id, d, r),
     onSuccess: (_data, vars) => setDecision(vars.d),
@@ -137,10 +140,23 @@ export default function DetectionConsole() {
         <Panel title="Models" bodyClassName="p-3">
           {!model.data ? <Spinner /> : (
             <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <EngineBadge engine={model.data.engine} />
-                <span className="text-[11px] text-ink-3">{model.data.engine === 'unet' ? `serving ${model.data.model_name}` : 'heuristic fallback active'}</span>
+              {/* Runnable engines — click one to run it on the selected tile and see that model's result. */}
+              <div className="label-caps text-[10px]">Run on this tile</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {([
+                  { key: 'unet' as const, label: 'Our U-Net', sub: 'trained' },
+                  { key: 'heuristic' as const, label: 'Heuristic', sub: 'dark-spot' },
+                ]).map((e) => (
+                  <button key={e.key} onClick={() => runWith(e.key)} disabled={!source || run.isPending}
+                    className={`rounded-md border px-2 py-1.5 text-left transition-colors disabled:opacity-40 ${engine === e.key ? 'border-accent bg-accent/5' : 'border-line hover:border-ink-3'}`}>
+                    <div className="flex items-center gap-1.5 text-xs font-semibold">
+                      {run.isPending && engine === e.key ? <Spinner /> : <Play className="size-3" />}{e.label}
+                    </div>
+                    <div className="font-mono text-[10px] text-ink-3">{e.sub}</div>
+                  </button>
+                ))}
               </div>
+              {result && <p className="text-[10px] text-ink-3">Showing <span className="font-semibold text-ink-2">{result.engine === 'unet' ? 'Our U-Net' : 'Heuristic'}</span> result · {result.inference_ms} ms · click the other to compare.</p>}
 
               {model.data.benchmarks && model.data.benchmarks.length > 0 && (
                 <>
@@ -192,7 +208,7 @@ export default function DetectionConsole() {
             <label className="flex items-center gap-2 text-xs text-ink-3">mask
               <input type="range" min={0} max={1} step={0.05} value={opacity} onChange={(e) => setOpacity(+e.target.value)} className="w-24 accent-accent" />
             </label>
-            <Button onClick={() => run.mutate(source)} disabled={run.isPending}><Play className="size-4" />{run.isPending ? 'Running…' : 'Run model'}</Button>
+            <Button onClick={() => runWith(engine)} disabled={run.isPending}><Play className="size-4" />{run.isPending ? 'Running…' : `Run ${engine === 'unet' ? 'U-Net' : 'heuristic'}`}</Button>
           </div>
         )}>
         {!source ? <div className="p-4"><Empty title="Pick a tile" /></div> : (
