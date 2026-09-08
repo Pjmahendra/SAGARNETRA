@@ -173,8 +173,28 @@ export const DETECT_RESULTS: Record<string, DetectResult> = {
 }
 
 export const REPORTS: Report[] = [
-  { id: 'rep-2', incident_code: 'INC-2026-041', generated_by: 'Lt. A. Menon', generated_at: '2026-09-06T06:32:00Z', pages: 6 },
-  { id: 'rep-1', incident_code: 'INC-2026-040', generated_by: 'Lt. A. Menon', generated_at: '2026-08-30T10:04:00Z', pages: 5 },
+  {
+    id: 'rep-2', incident_id: 'inc-041', incident_code: 'INC-2026-041', revision: 1,
+    generated_by: 'Lt. A. Menon', generated_at: '2026-09-06T06:32:00Z',
+    snapshot: {
+      zone: 'Gujarat Offshore Lane', detected_at: ACQ, area_km2: 4.21, confidence: 0.91, engine: 'unet',
+      scene: 'S1A_IW_GRDH_1SDV_20260906T011200', centroid: SLICK_CENTROID, status: 'investigating', is_demo: true,
+      ranked_count: RANKING.length, candidates_considered: 8, top_vessel: 'MT SAURASHTRA PRIDE', top_mmsi: '419001234',
+      top_score: RANKING[0]?.score ?? null, top_tier: 'prime', weather_source: 'open-meteo',
+      hashes: { tile_sha256: '9f2c1e7a44b0d3e1c5a8f6b2d9e0c7a1b3f4d5e6a7b8c9d0e1f2a3b4c5d6e7f8', mask_sha256: '4b1d9e0c7a1b3f4d5e6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e' },
+    },
+  },
+  {
+    id: 'rep-1', incident_id: 'inc-040', incident_code: 'INC-2026-040', revision: 1,
+    generated_by: 'Lt. A. Menon', generated_at: '2026-08-30T10:04:00Z',
+    snapshot: {
+      zone: 'Mumbai Approaches', detected_at: '2026-08-29T01:05:00Z', area_km2: 1.37, confidence: 0.64, engine: 'heuristic',
+      scene: 'S1A_IW_GRDH_1SDV_20260829T010500', centroid: [72.61, 18.84], status: 'closed', is_demo: true,
+      ranked_count: 0, candidates_considered: null, top_vessel: 'MV WESTERN GLORY', top_mmsi: null,
+      top_score: null, top_tier: 'poi', weather_source: 'open-meteo',
+      hashes: {},
+    },
+  },
 ]
 
 export const AUDIT: AuditEntry[] = [
