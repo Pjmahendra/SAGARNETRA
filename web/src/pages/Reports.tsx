@@ -19,7 +19,7 @@ export default function Reports() {
     const needle = search.trim().toLowerCase()
     if (!needle) return q.data ?? []
     return (q.data ?? []).filter((r) =>
-      [r.incident_code, r.generated_by, r.snapshot.zone, r.snapshot.top_vessel, r.snapshot.top_mmsi]
+      [r.incident_code, r.generated_by, r.snapshot?.zone, r.snapshot?.top_vessel, r.snapshot?.top_mmsi]
         .some((v) => v?.toLowerCase().includes(needle)),
     )
   }, [q.data, search])
@@ -55,12 +55,12 @@ export default function Reports() {
                 <tr key={r.id}>
                   <td>
                     <Link to={`/app/incidents/${r.incident_id}`} className="font-mono font-semibold text-sea hover:underline">{r.incident_code}</Link>
-                    {r.snapshot.is_demo && <span className="ml-2 font-mono text-[10px] uppercase tracking-wide text-ink-3" title="Reconstructed scenario, not a recorded case">demo</span>}
+                    {r.snapshot?.is_demo && <span className="ml-2 font-mono text-[10px] uppercase tracking-wide text-ink-3" title="Reconstructed scenario, not a recorded case">demo</span>}
                   </td>
-                  <td className="text-ink-2">{r.snapshot.zone}</td>
-                  <td className="text-right font-mono tnum">{fmtKm2(r.snapshot.area_km2)}</td>
+                  <td className="text-ink-2">{r.snapshot?.zone ?? '—'}</td>
+                  <td className="text-right font-mono tnum">{r.snapshot ? fmtKm2(r.snapshot.area_km2) : '—'}</td>
                   <td>
-                    {r.snapshot.top_vessel ? (
+                    {r.snapshot?.top_vessel ? (
                       <span className="flex items-center gap-2">
                         {r.snapshot.top_tier && <TierChip tier={r.snapshot.top_tier} compact />}
                         <span className="truncate font-mono text-xs">{r.snapshot.top_vessel}</span>
@@ -70,7 +70,7 @@ export default function Reports() {
                   </td>
                   <td>{r.generated_by}</td>
                   <td className="font-mono text-xs">{fmtUtc(r.generated_at)}</td>
-                  <td className="text-right font-mono tnum">{r.revision}</td>
+                  <td className="text-right font-mono tnum">{r.revision ?? '—'}</td>
                   <td className="text-right">
                     <Link to={`/app/reports/${r.id}/print`} target="_blank" rel="noopener">
                       <Button variant="ghost" className="px-2 py-1 text-xs"><ExternalLink className="size-3.5" />Open</Button>

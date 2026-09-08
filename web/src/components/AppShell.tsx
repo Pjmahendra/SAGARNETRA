@@ -1,11 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
+import { motion } from 'motion/react'
 import { ChevronDown, FileText, LogOut, ScanSearch, ShieldCheck, Ship, Siren } from 'lucide-react'
-import { NavLink, Outlet, useNavigate } from 'react-router'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import type { LucideIcon } from 'lucide-react'
 import { hasRole, useAuth } from '../auth/store'
 import { api, MOCK_MODE } from '../lib/api'
 import { cn } from '../lib/cn'
+import ErrorBoundary from './ErrorBoundary'
 import { useUi } from '../store/ui'
+import { DUR, EASE } from '../lib/motion'
 
 const NAV: { to: string; label: string; end?: boolean; Icon?: LucideIcon }[] = [
   { to: '/app', label: 'Dashboard', end: true },
@@ -15,11 +18,25 @@ const NAV: { to: string; label: string; end?: boolean; Icon?: LucideIcon }[] = [
   { to: '/app/reports', label: 'Reports', Icon: FileText },
 ]
 
+// The active state is unchanged in appearance; it is simply drawn once and moved. `layoutId` lets
+// motion carry the same pill between tabs instead of one fading out while another fades in, which
+// is what makes the nav read as a single control rather than six independent buttons.
 const navLink = ({ isActive }: { isActive: boolean }) =>
   cn(
-    'inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-ink-2 transition-colors hover:bg-surface hover:text-ink',
-    isActive && 'bg-ink text-bg shadow-sm hover:bg-ink hover:text-bg',
+    'relative inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+    isActive ? 'text-bg' : 'text-ink-2 hover:bg-surface hover:text-ink',
   )
+
+function NavPill() {
+  return (
+    <motion.span
+      layoutId="nav-active"
+      className="absolute inset-0 rounded-md bg-ink shadow-sm"
+      transition={{ duration: DUR.hover, ease: EASE }}
+      aria-hidden
+    />
+  )
+}
 
 function Dot({ ok, label, detail }: { ok: boolean | null; label: string; detail: string }) {
   return (
@@ -33,6 +50,7 @@ function Dot({ ok, label, detail }: { ok: boolean | null; label: string; detail:
 export default function AppShell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const { zoneId, setZone } = useUi()
   const health = useQuery({ queryKey: ['health'], queryFn: api.health, refetchInterval: 30_000 })
   const overview = useQuery({ queryKey: ['overview'], queryFn: api.overview })
@@ -57,14 +75,28 @@ export default function AppShell() {
           <nav className="flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-lg bg-surface-2/70 p-1">
             {NAV.map(({ to, label, end, Icon }) => (
               <NavLink key={to} to={to} end={end} className={navLink}>
-                {Icon && <Icon className="size-[15px]" aria-hidden />}
-                {label}
+                {({ isActive }) => (
+                  <>
+                    {isActive && <NavPill />}
+                    <span className="relative inline-flex items-center gap-1.5">
+                      {Icon && <Icon className="size-[15px]" aria-hidden />}
+                      {label}
+                    </span>
+                  </>
+                )}
               </NavLink>
             ))}
             {hasRole(user, 'admin') && (
               <NavLink to="/app/admin" className={navLink}>
-                <ShieldCheck className="size-[15px]" aria-hidden />
-                Admin
+                {({ isActive }) => (
+                  <>
+                    {isActive && <NavPill />}
+                    <span className="relative inline-flex items-center gap-1.5">
+                      <ShieldCheck className="size-[15px]" aria-hidden />
+                      Admin
+                    </span>
+                  </>
+                )}
               </NavLink>
             )}
           </nav>
@@ -116,8 +148,11 @@ export default function AppShell() {
         </div>
       </header>
 
+      {/* One page failing must not blank the console; the boundary resets when you navigate. */}
       <main className="min-h-0 overflow-auto">
-        <Outlet />
+        <ErrorBoundary key={pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </div>
   )

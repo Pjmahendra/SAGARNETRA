@@ -30,3 +30,4 @@ ml/runs/
 # live AIS recorder log (scripts/ais_collector.py)
 backend/ais.log
 backend/uvicorn.log
+web/vite.log

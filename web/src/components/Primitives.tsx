@@ -1,6 +1,9 @@
 import { forwardRef, type ReactNode } from 'react'
+import { motion } from 'motion/react'
 import { AlertOctagon, AlertTriangle, CheckCircle2, Cpu, Loader2, Waves } from 'lucide-react'
 import { cn } from '../lib/cn'
+import { group, rise, useEntrance, usePress, useReveal } from '../lib/motion'
+import { TextReveal } from './Motion'
 import { STATUS_LABEL, TIER_LABEL } from '../lib/format'
 import type { Engine, IncidentStatus, Tier } from '../lib/types'
 
@@ -54,8 +57,11 @@ export function StatusChip({ status }: { status: IncidentStatus }) {
 export const Panel = forwardRef<HTMLElement, {
   title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; bodyClassName?: string; id?: string
 }>(function Panel({ title, actions, children, className, bodyClassName, id }, ref) {
+  // Reveals as it scrolls into view, once. Still a <section> with the same classes, so the section
+  // -jump refs and the dashboard's IntersectionObserver keep working untouched.
+  const reveal = useReveal()
   return (
-    <section ref={ref} id={id} className={cn('flex min-h-0 flex-col rounded-lg border border-line bg-surface shadow-[0_1px_2px_rgba(20,16,12,0.04)]', className)}>
+    <motion.section {...reveal} ref={ref} id={id} className={cn('flex min-h-0 flex-col rounded-lg border border-line bg-surface shadow-[0_1px_2px_rgba(20,16,12,0.04)]', className)}>
       {(title || actions) && (
         <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
           {typeof title === 'string' ? <h3 className="text-[15px] font-semibold tracking-wide text-ink">{title}</h3> : title}
@@ -63,30 +69,38 @@ export const Panel = forwardRef<HTMLElement, {
         </header>
       )}
       <div className={cn('min-h-0 flex-1 p-4', bodyClassName)}>{children}</div>
-    </section>
+    </motion.section>
   )
 })
 
 export function PageHeader({ eyebrow, title, description, actions }: {
   eyebrow?: string; title: string; description?: string; actions?: ReactNode
 }) {
+  // The heading is the strongest reveal on any page: eyebrow, title, description, then the actions,
+  // in reading order. Every element keeps its own classes; only opacity and transform move.
+  const entrance = useEntrance(group())
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+    <motion.div {...entrance} className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
-        {eyebrow && <div className="label-caps mb-1 flex items-center gap-1.5"><span className="h-px w-4 bg-accent" aria-hidden />{eyebrow}</div>}
-        <h1 className="text-[28px] font-semibold leading-none">{title}</h1>
-        {description && <p className="mt-1.5 max-w-[62ch] text-sm text-ink-2">{description}</p>}
+        {eyebrow && <motion.div variants={rise} className="label-caps mb-1 flex items-center gap-1.5"><span className="h-px w-4 bg-accent" aria-hidden />{eyebrow}</motion.div>}
+        {/* The page's own name is the one heading that earns a masked reveal: it rises out from
+            behind its baseline rather than fading in place, which reads as revealed, not loaded. */}
+        <motion.div variants={rise}>
+          <TextReveal as="h1" className="text-[28px] font-semibold leading-none" delay={0.05}>{title}</TextReveal>
+        </motion.div>
+        {description && <motion.p variants={rise} className="mt-1.5 max-w-[62ch] text-sm text-ink-2">{description}</motion.p>}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
-    </div>
+      {actions && <motion.div variants={rise} className="flex items-center gap-2">{actions}</motion.div>}
+    </motion.div>
   )
 }
 
 export function KpiTile({ label, value, unit, hint, tone = 'default', className }: {
   label: string; value: string | number; unit?: string; hint?: string; tone?: 'default' | 'accent' | 'crit'; className?: string
 }) {
+  const reveal = useReveal()
   return (
-    <div className={cn('relative overflow-hidden rounded-lg border border-line bg-surface px-4 py-3', className)}>
+    <motion.div {...reveal} className={cn('relative overflow-hidden rounded-lg border border-line bg-surface px-4 py-3', className)}>
       <span className={cn('absolute inset-y-0 left-0 w-[3px]', tone === 'accent' ? 'bg-accent' : tone === 'crit' ? 'bg-crit' : 'bg-line')} aria-hidden />
       <div className="label-caps">{label}</div>
       <div className={cn('mt-1 flex items-baseline gap-1.5 font-display text-[30px] font-semibold leading-none tnum',
@@ -95,7 +109,7 @@ export function KpiTile({ label, value, unit, hint, tone = 'default', className 
         {unit && <span className="font-sans text-sm font-normal text-ink-3">{unit}</span>}
       </div>
       {hint && <div className="mt-1 text-xs text-ink-3">{hint}</div>}
-    </div>
+    </motion.div>
   )
 }
 
@@ -115,8 +129,12 @@ export function ErrorNote({ message }: { message: string }) {
 }
 
 export function Button({ variant = 'primary', className, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'ghost' | 'danger' }) {
+  // Press gives a scale; hover stays in CSS. A JS hover would also fire on touch and stick there
+  // after the finger lifts, and the colour transition below is already the hover treatment.
+  const press = usePress()
   return (
-    <button
+    <motion.button
+      {...press}
       className={cn(
         'inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50',
         variant === 'primary' && 'bg-accent text-white hover:bg-accent-deep',
@@ -124,7 +142,7 @@ export function Button({ variant = 'primary', className, ...rest }: React.Button
         variant === 'danger' && 'border border-crit/50 bg-crit/5 text-crit hover:bg-crit/10',
         className,
       )}
-      {...rest}
+      {...(rest as React.ComponentProps<typeof motion.button>)}
     />
   )
 }

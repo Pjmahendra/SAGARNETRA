@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from ..db import new_id, out
 from ..deps import Db, Officer
 from ..services import audit, sectors
+from ..services.sectors import zone_filter
 
 router = APIRouter(prefix="/api/detect", tags=["detect"])
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -47,8 +48,10 @@ class VerifyIn(BaseModel):
 
 
 @router.get("/samples")
-async def samples(_: Officer, db: Db):
-    docs = await db.samples.find().sort("acquired_at", -1).to_list(50)
+async def samples(user: Officer, db: Db):
+    # Scoped like everything else: an officer reviews the scenes for their own sectors. A tile
+    # outside every sector has no zone_id and is admin-only, the same rule vessels follow.
+    docs = await db.samples.find(zone_filter(user)).sort("acquired_at", -1).to_list(50)
     result = []
     for d in docs:
         o = out(d)

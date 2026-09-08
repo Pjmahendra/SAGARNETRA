@@ -7,23 +7,65 @@ Powers the command view: each sector carries a globe center + map bbox, a count 
 
 from __future__ import annotations
 
+import logging
+from datetime import UTC, datetime, timedelta
+
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from shapely.geometry import Point, shape
 
 from ..db import out
 
+log = logging.getLogger(__name__)
+
+
+#: A live vessel counts as present only while its last report is this recent. Matches the window the
+#: Vessels page and the vessels_tracked KPI use, so no two numbers on screen can disagree.
+LIVE_WINDOW_H = 2
+
+
+async def vessels_now(db: AsyncIOMotorDatabase) -> dict[str, int]:
+    """Vessels currently in each zone, counted from the vessels themselves.
+
+    `watch_zones.vessels_now` is a seeded field that nothing ever updated, so it reported fiction:
+    zero for the Dover Strait while the recorder had 189 real ships in it, and 61 for Gujarat which
+    holds 8. Counting is one grouped query, and a number on an officer's screen has to be true.
+    """
+    cutoff = datetime.now(UTC) - timedelta(hours=LIVE_WINDOW_H)
+    pipeline = [
+        {"$match": {"zone_id": {"$ne": None},
+                    "$or": [{"source": {"$ne": "live"}}, {"last_seen": {"$gte": cutoff}}]}},
+        {"$group": {"_id": "$zone_id", "n": {"$sum": 1}}},
+    ]
+    try:
+        return {d["_id"]: d["n"] async for d in db.vessels.aggregate(pipeline)}
+    except Exception as e:  # mongomock lacks parts of the aggregation pipeline; never break a page
+        log.warning("vessels_now aggregate unavailable (%s); counting per zone", e)
+        out_counts: dict[str, int] = {}
+        async for z in db.watch_zones.find({}, {"_id": 1}):
+            out_counts[z["_id"]] = await db.vessels.count_documents({
+                "zone_id": z["_id"],
+                "$or": [{"source": {"$ne": "live"}}, {"last_seen": {"$gte": cutoff}}],
+            })
+        return out_counts
+
 
 def zone_filter(user: dict) -> dict:
-    """Mongo filter restricting a query to the officer's own sector.
+    """Mongo filter restricting a query to the officer's own sectors.
 
-    An officer sees only the zones they are assigned; an admin, and an officer with no zones set,
-    sees everything. This is what keeps live North Sea traffic and the Indian scenario apart: they
-    share the same collections and are separated by who is asking.
+    Scope follows the *role*, not the length of the list. An admin sees everything; an officer sees
+    the zones they are assigned, and an officer assigned none sees nothing.
+
+    That last case used to fall through to "no filter", which meant a newly created officer with no
+    sectors silently saw every zone in the country — the opposite of the intent, and the failure
+    mode you would least want to discover in front of an auditor. An impossible filter is the safe
+    default: an unassigned account is inert until an admin gives it a sector.
+
+    This is what keeps live Dover traffic and the Indian scenario apart. They share the same
+    collections and are separated by who is asking.
     """
-    zone_ids = user.get("zone_ids") or []
-    if user.get("role") == "admin" or not zone_ids:
+    if user.get("role") == "admin":
         return {}
-    return {"zone_id": {"$in": zone_ids}}
+    return {"zone_id": {"$in": user.get("zone_ids") or []}}
 
 
 def _center_bbox(geometry: dict | None) -> tuple[list[float] | None, list[float] | None]:
@@ -67,9 +109,13 @@ def _detection_summary(d: dict) -> dict:
     }
 
 
-async def list_sectors(db: AsyncIOMotorDatabase) -> list[dict]:
+async def list_sectors(db: AsyncIOMotorDatabase, user: dict | None = None) -> list[dict]:
+    """The officer's own sectors. `user=None` means unscoped, which only admin paths should use."""
+    counts = await vessels_now(db)
+    scope = zone_filter(user) if user else {}
+    zone_scope = {"_id": scope["zone_id"]} if scope else {}
     sectors = []
-    async for z in db.watch_zones.find().sort("name", 1):
+    async for z in db.watch_zones.find(zone_scope).sort("name", 1):
         center, bbox = _center_bbox(z.get("geometry"))
         sectors.append({
             "id": z["_id"],
@@ -80,7 +126,7 @@ async def list_sectors(db: AsyncIOMotorDatabase) -> list[dict]:
             "pending": await db.detections.count_documents({"zone_id": z["_id"], "verification": None}),
             "open_incidents": await db.incidents.count_documents({"zone_id": z["_id"], "status": {"$ne": "closed"}}),
             "last_scene_at": z.get("last_scene_at"),
-            "vessels_now": z.get("vessels_now", 0),
+            "vessels_now": counts.get(z["_id"], 0),
         })
     return sectors
 

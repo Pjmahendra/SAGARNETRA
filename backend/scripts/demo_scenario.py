@@ -8,6 +8,8 @@ from __future__ import annotations
 import math
 from datetime import UTC, datetime, timedelta
 
+from shapely.geometry import Point, shape
+
 ACQ = datetime(2026, 9, 6, 1, 12, tzinfo=UTC)
 
 
@@ -92,7 +94,9 @@ ZONES = [
         "vessels_now": 61,
         "geometry": {
             "type": "Polygon",
-            "coordinates": [[[68.6, 20.4], [70.2, 20.4], [70.2, 21.9], [68.6, 21.9], [68.6, 20.4]]],
+            # Extends north to the Gulf of Kutch so Kandla and Mundra, and the kut-04 clean-sea tile,
+            # fall inside the sector rather than in unwatched water.
+            "coordinates": [[[68.4, 20.4], [70.2, 20.4], [70.2, 22.8], [68.4, 22.8], [68.4, 20.4]]],
         },
     },
     {
@@ -560,6 +564,13 @@ SAMPLES = [
         "synthetic": True,
     },
 ]
+
+# File each sample tile under the sector its footprint sits in, so the detection console can show
+# an officer the scenes for their own region instead of every tile in the country.
+for _s in SAMPLES:
+    _w, _s_lat, _e, _n = _s["bbox"]
+    _c = Point((_w + _e) / 2, (_s_lat + _n) / 2)
+    _s["zone_id"] = next((z["_id"] for z in ZONES if shape(z["geometry"]).contains(_c)), None)
 
 #: Reports are no longer hand-authored fixtures: the seed exports a real one from the real demo
 #: incident through app.services.reports, so a seeded pack and an officer-made pack are identical.
