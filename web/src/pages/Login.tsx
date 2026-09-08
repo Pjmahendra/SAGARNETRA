@@ -42,11 +42,13 @@ export default function Login() {
           boundary leaves a hard vertical seam down the middle of the sea. */}
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(8,14,20,0.8)_0%,rgba(8,14,20,0.3)_34%,transparent_58%)]" />
 
+      {/* Credit for the backdrop imagery, at the page corner. Esri's licence requires it be
+          shown wherever their tiles are; replace the text if you swap the image. */}
+      <div className="pointer-events-none absolute bottom-2 right-3 z-10 font-mono text-[10px] text-white/35">Chennai–Ennore · imagery © Esri, Maxar, Earthstar Geographics</div>
+
       <div className="relative grid min-h-dvh md:grid-cols-[1.15fr_1fr]">
       <aside className="relative hidden md:block">
         <div className="absolute left-6 top-6 font-mono text-[11px] uppercase tracking-wider text-white/70 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">Sentinel-1A · IW GRD · VV · 2026-09-06 01:12Z</div>
-        {/* Esri's licence requires the credit wherever their imagery is shown, including here. */}
-        <div className="absolute bottom-2 right-3 font-mono text-[10px] text-white/40">Chennai–Ennore · imagery © Esri, Maxar, Earthstar Geographics</div>
         <div className="absolute bottom-6 left-6 max-w-[40ch]">
           <div className="font-display text-3xl font-semibold leading-tight text-white [text-shadow:0_2px_12px_rgba(0,0,0,0.55)]">Oil reads dark on radar. So do calm water and algae.</div>
           <p className="mt-2 text-sm text-white/80 [text-shadow:0_1px_6px_rgba(0,0,0,0.6)]">The model's job is telling them apart. The officer's job is deciding who to board. This console is where the two meet.</p>

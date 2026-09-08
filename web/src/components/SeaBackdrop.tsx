@@ -166,9 +166,13 @@ export default function SeaBackdrop({ className }: { className?: string }) {
       {/* The Chennai–Ennore coast from the same Esri imagery the console's maps use, stitched and
           graded offline into `public/media/login.jpg`. Bundled, so it needs no network. It layers
           over the canvas; if the file were ever missing, the drawn sea is still underneath. */}
+      {/* The grade lives here, not baked into the file, so that replacing the image is genuinely a
+          drop-in: whatever you put at this path is darkened and desaturated to the same degree and
+          the sign-in panel stays readable over it. */}
       <img
         src="/media/login.jpg" alt=""
         className={`absolute inset-0 size-full object-cover transition-opacity duration-700 ${imgReady ? 'opacity-100' : 'opacity-0'}`}
+        style={{ filter: 'saturate(0.8) brightness(0.58) contrast(0.95)' }}
         onLoad={() => setImgReady(true)}
       />
       {/* Optional: drop a clip at web/public/media/login.mp4 and it takes over. If the file is not
