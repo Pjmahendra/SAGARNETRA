@@ -21,12 +21,14 @@ export const DUR = {
   hover: 0.22,
   /** Element entrances. */
   base: 0.42,
+  /** A heading or an image arriving. Long enough to read as deliberate. */
+  reveal: 0.72,
   /** Large reveals: a page's content, a panel the size of the viewport. */
   slow: 0.62,
 } as const
 
 /** Gap between children in a staggered group. Small: this is texture, not choreography. */
-export const STAGGER = 0.055
+export const STAGGER = 0.07
 
 /** The house entrance: a short rise with the fade, never a fade on its own. */
 export const rise: Variants = {

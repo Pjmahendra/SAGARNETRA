@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router'
+import { useReducedMotion } from 'motion/react'
 import RequireAuth from './auth/RequireAuth'
 import RequireRole from './auth/RequireRole'
 import AppShell from './components/AppShell'
@@ -43,12 +44,15 @@ function AppRoutes() {
   const [display, setDisplay] = useState(location)
   const [phase, setPhase] = useState<'idle' | 'cover' | 'reveal'>('idle')
   const routeTitle = useRouteTitle()
+  // Someone who asked the system for less motion gets the page, not the performance: the router
+  // swaps straight away and the overlay never mounts.
+  const still = useReducedMotion()
 
   // Adjusting state while rendering, rather than in an effect, so the pinned location and the
   // curtain start in the same commit as the address change. An effect would paint one frame of
   // the destination first, which is the flash this exists to prevent.
   if (phase === 'idle' && location.pathname !== display.pathname) {
-    const inConsole = [location.pathname, display.pathname].every(
+    const inConsole = !still && [location.pathname, display.pathname].every(
       (p) => p.startsWith('/app') && !PRINT_PATH.test(p),
     )
     if (inConsole) setPhase('cover')

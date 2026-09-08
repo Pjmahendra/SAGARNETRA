@@ -3,6 +3,7 @@ import { motion } from 'motion/react'
 import { AlertOctagon, AlertTriangle, CheckCircle2, Cpu, Loader2, Waves } from 'lucide-react'
 import { cn } from '../lib/cn'
 import { group, rise, useEntrance, usePress, useReveal } from '../lib/motion'
+import { TextReveal } from './Motion'
 import { STATUS_LABEL, TIER_LABEL } from '../lib/format'
 import type { Engine, IncidentStatus, Tier } from '../lib/types'
 
@@ -82,7 +83,11 @@ export function PageHeader({ eyebrow, title, description, actions }: {
     <motion.div {...entrance} className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
         {eyebrow && <motion.div variants={rise} className="label-caps mb-1 flex items-center gap-1.5"><span className="h-px w-4 bg-accent" aria-hidden />{eyebrow}</motion.div>}
-        <motion.h1 variants={rise} className="text-[28px] font-semibold leading-none">{title}</motion.h1>
+        {/* The page's own name is the one heading that earns a masked reveal: it rises out from
+            behind its baseline rather than fading in place, which reads as revealed, not loaded. */}
+        <motion.div variants={rise}>
+          <TextReveal as="h1" className="text-[28px] font-semibold leading-none" delay={0.05}>{title}</TextReveal>
+        </motion.div>
         {description && <motion.p variants={rise} className="mt-1.5 max-w-[62ch] text-sm text-ink-2">{description}</motion.p>}
       </div>
       {actions && <motion.div variants={rise} className="flex items-center gap-2">{actions}</motion.div>}
