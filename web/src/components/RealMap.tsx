@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { CircleMarker, MapContainer, Marker, Polygon, Polyline, ScaleControl, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -66,7 +66,11 @@ function shipIcon(v: PlanVessel, onImagery: boolean) {
 interface Cursor { lat: number; lon: number; zoom: number }
 
 /** A simple point overlay — e.g. a sector's detections awaiting review. */
-export interface MapPoint { id: string; position: LonLat; tone?: 'spill' | 'clean'; label?: string; onClick?: () => void }
+export interface MapPoint {
+  id: string; position: LonLat; tone?: 'spill' | 'clean'; label?: string; onClick?: () => void
+  /** Draw as an open ring, for when the point marks something already drawn underneath it. */
+  hollow?: boolean
+}
 
 /**
  * Live cursor position readout. PlanView labels its graticule, so the real map needs the
@@ -77,6 +81,28 @@ function CursorReadout({ onChange }: { onChange: (c: Cursor | null) => void }) {
     mousemove: (e) => onChange({ lat: e.latlng.lat, lon: e.latlng.lng, zoom: map.getZoom() }),
     mouseout: () => onChange(null),
   })
+  return null
+}
+
+/**
+ * Leaflet reads `bounds` once, when the map is created. But the thing worth framing — the slick —
+ * usually arrives after that: the panel mounts the map, then the incident detail resolves. Without
+ * this the view stays wherever it started and a small slick is a speck in a wide sea.
+ *
+ * Refits only when the numbers actually change, so it never fights the officer's own panning.
+ */
+function FitBounds({ bounds }: { bounds?: [[number, number], [number, number]] }) {
+  const map = useMap()
+  const key = bounds ? bounds.flat().join(',') : ''
+  useEffect(() => {
+    if (!bounds) return
+    // Capped: a small slick's own extent would otherwise zoom to street level, filling the panel
+    // with featureless water. Stopping at 12 keeps the coastline and the shipping lane in frame,
+    // which is the context that makes a slick mean something.
+    map.fitBounds(bounds, { animate: true, duration: 0.6, padding: [12, 12], maxZoom: 12 })
+    // `key` is the value identity of `bounds`; the array itself is rebuilt every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, map])
   return null
 }
 
@@ -162,6 +188,7 @@ export default function RealMap({
         <TileLayer key={basemap} attribution={bm.attribution} url={bm.url} maxZoom={bm.maxZoom} noWrap />
         <ScaleControl position="bottomright" imperial={false} />
         <CursorReadout onChange={setCursor} />
+        <FitBounds bounds={bounds} />
         {onZoomOut && <ZoomOutWatch at={MIN_ZOOM} onZoomOut={onZoomOut} />}
         {basemap === 'satellite' && (
           <TileLayer
@@ -208,6 +235,13 @@ export default function RealMap({
             pathOptions={{ color: '#0b0501', weight: 1, opacity: 0.55, fillColor: '#14100c', fillOpacity: 0.72 }} />
         </SlickPane>
       )}
+      {/* The sheen above multiplies into the water, which is what oil looks like but which also
+          means dark-on-dark. An accent hairline outside the blend pane keeps the edge findable at
+          any zoom without pretending the slick is brighter than it is. */}
+      {polygon.length > 2 && (
+        <Polygon positions={polygon.map(ll)} interactive={false}
+          pathOptions={{ color: '#ff6803', weight: 1.5, opacity: 0.9, fill: false, lineJoin: 'round' }} />
+      )}
 
       {/* selected track, gap segments dashed and red */}
       {track && track.points.length > 1 && (
@@ -248,8 +282,10 @@ export default function RealMap({
 
       {/* detection points — a sector's slicks/clean tiles awaiting officer review */}
       {points.map((p) => (
-        <CircleMarker key={p.id} center={ll(p.position)} radius={8} pane="markerPane"
-          pathOptions={{ color: '#f4f2ef', weight: 2, fillColor: p.tone === 'spill' ? '#c7301f' : '#928c83', fillOpacity: 0.92 }}
+        <CircleMarker key={p.id} center={ll(p.position)} radius={p.hollow ? 15 : 8} pane="markerPane"
+          pathOptions={p.hollow
+            ? { color: '#ff6803', weight: 2.5, opacity: 0.95, fill: false }
+            : { color: '#f4f2ef', weight: 2, fillColor: p.tone === 'spill' ? '#c7301f' : '#928c83', fillOpacity: 0.92 }}
           eventHandlers={p.onClick ? { click: p.onClick } : undefined}>
           {p.label && <Tooltip direction="top" offset={[0, -6]} className="!font-mono !text-[11px]">{p.label}</Tooltip>}
         </CircleMarker>

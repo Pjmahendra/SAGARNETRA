@@ -427,15 +427,57 @@ INCIDENTS = [
     },
 ]
 
+def slick_polygon(centroid, area_km2, heading_deg, *, ratio=5.5, n=30, seed=0):
+    """A plausible slick outline around a centroid, with exactly the stated area.
+
+    The recorded spills are catalogue entries: a position, an area and a long-axis bearing, with no
+    stored mask. Without an outline the map can only draw a dot, which reads as "nothing detected"
+    rather than "a 0.7 km² slick". So the outline is derived from the numbers the record does carry
+    — a bilge discharge is long and thin, hence the 5.5:1 default — and then scaled so the drawn
+    polygon's area equals `area_km2` exactly. Nothing is invented that the record does not state,
+    and the shape is deterministic in `seed`, so re-seeding never moves it.
+    """
+    lon0, lat0 = centroid
+    b = math.sqrt(area_km2 / (math.pi * ratio))  # semi-minor axis, km
+    a = ratio * b
+    th = math.radians(heading_deg or 0)
+
+    # Ellipse in (along-axis, across-axis) km, gently rippled so it does not read as clip art.
+    pts = []
+    for i in range(n):
+        t = 2 * math.pi * i / n
+        wob = 1 + 0.13 * math.sin(3 * t + seed) + 0.06 * math.sin(5 * t + 2 * seed)
+        pts.append((a * math.cos(t) * wob, b * math.sin(t) * wob))
+
+    # Rescale to the stated area: the ripple changes it, and the number on screen must be the truth.
+    shoelace = abs(sum(pts[i][0] * pts[(i + 1) % n][1] - pts[(i + 1) % n][0] * pts[i][1] for i in range(n))) / 2
+    k = math.sqrt(area_km2 / shoelace) if shoelace else 1.0
+
+    km_per_deg_lat = 110.574
+    km_per_deg_lon = 111.320 * math.cos(math.radians(lat0))
+    ring = []
+    for along, across in pts:
+        north = k * (along * math.cos(th) - across * math.sin(th))
+        east = k * (along * math.sin(th) + across * math.cos(th))
+        ring.append([round(lon0 + east / km_per_deg_lon, 6), round(lat0 + north / km_per_deg_lat, 6)])
+    ring.append(ring[0])
+    return ring
+
+
 def _demo_inc(_id, code, status, zone, zone_id, dt, area, conf, engine, centroid, top_tier=None, top_vessel=None):
     """A lightweight recorded spill for a region (no ranking/geometry). 'detected' ones are unconfirmed and route to
     the console; the rest are confirmed cases. Centroids sit inside the region's sample tile so a detected one
     deep-links onto its scene."""
+    # A stable per-incident heading and ripple, derived from the id so they never shift between seeds.
+    n = int(_id[-2:])
+    heading = (n * 37) % 180
     return {
         "_id": _id, "code": code, "status": status, "zone": zone, "zone_id": zone_id,
         "detected_at": dt, "area_km2": area, "confidence": conf, "engine": engine, "centroid": centroid,
         "top_tier": top_tier, "top_vessel": top_vessel, "assigned_to": None, "is_demo": True,
-        "scene": "S1A_IW_GRDH synthetic tile", "polygon": [], "heading_deg": 0,
+        "scene": "S1A_IW_GRDH synthetic tile",
+        "heading_deg": heading,
+        "polygon": slick_polygon(centroid, area, heading, seed=n % 7),
         "origin_zones": [], "drift_inputs": {}, "ranking": [], "events": [], "hashes": {}, "created_at": dt,
     }
 
@@ -450,6 +492,16 @@ INCIDENTS += [
     _demo_inc("inc-031", "INC-2026-031", "detected", "Chennai–Ennore", "z-che", datetime(2026, 9, 4, 0, 40, tzinfo=UTC), 0.7, 0.77, "unet", [80.42, 13.20]),
     _demo_inc("inc-030", "INC-2026-030", "closed", "Chennai–Ennore", "z-che", datetime(2026, 8, 18, 0, 35, tzinfo=UTC), 1.1, 0.60, "heuristic", [80.45, 13.25], "poi", "MV CORO STAR"),
 ]
+
+# The two hand-written records above predate slick_polygon and carried an area with no outline, so
+# they drew on the map as a bare dot — which reads as "nothing found" next to a stated 1.37 km².
+# Every recorded spill now has an outline matching its own area.
+for _inc in INCIDENTS:
+    if not _inc.get("polygon"):
+        _n = int(_inc["_id"][-2:])
+        _inc["polygon"] = slick_polygon(
+            _inc["centroid"], _inc["area_km2"], _inc.get("heading_deg") or (_n * 37) % 180, seed=_n % 7
+        )
 
 _DEST = ["INMUN", "INKDL", "AEJEA", "SGSIN", None, "INPBD", "INOKH", None]
 VESSELS = [

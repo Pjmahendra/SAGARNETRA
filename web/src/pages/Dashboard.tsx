@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router'
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -105,14 +105,31 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoneId])
 
-  // Centre the map on the selected spill, and always drop a mark at its centroid (so an unconfirmed spill
-  // with no polygon still shows the oil-spill mark).
-  const focus: [number, number, number, number] | undefined = selected
-    ? [selected.centroid[0] - 0.15, selected.centroid[1] - 0.15, selected.centroid[0] + 0.15, selected.centroid[1] + 0.15]
-    : undefined
+  // Frame the slick itself, not a fixed box around its centroid. A 0.7 km² slick inside a 33 km
+  // view is four pixels of dark on dark water, which reads as "nothing was detected". So the view
+  // is the slick's own extent, widened to a floor of ~4 km so a small one still has its coastline
+  // and shipping lane for context rather than filling the panel edge to edge.
+  const MIN_HALF_SPAN = 0.03
+  const focus: [number, number, number, number] | undefined = useMemo(() => {
+    if (!selected) return undefined
+    const poly = det?.polygon?.length ? det.polygon : null
+    const [cx, cy] = selected.centroid
+    if (!poly) return [cx - 0.05, cy - 0.05, cx + 0.05, cy + 0.05]
+    const lons = poly.map((p) => p[0])
+    const lats = poly.map((p) => p[1])
+    const [w, e, s, n] = [Math.min(...lons), Math.max(...lons), Math.min(...lats), Math.max(...lats)]
+    const mx = Math.max(MIN_HALF_SPAN, (e - w) * 1.4)
+    const my = Math.max(MIN_HALF_SPAN, (n - s) * 1.4)
+    return [(w + e) / 2 - mx, (s + n) / 2 - my, (w + e) / 2 + mx, (s + n) / 2 + my]
+  }, [selected, det])
+
+  // The centroid pin is how an unconfirmed spill with no outline still shows on the map. Once there
+  // IS an outline the pin would sit on top of the very thing it points at, so it steps aside into a
+  // ring the slick shows through.
   const spillMark: MapPoint[] = selected
     ? [{
         id: `sel-${selected.id}`, position: selected.centroid, tone: 'spill', label: spillName(selected),
+        hollow: !!det?.polygon?.length,
         onClick: () => (selected.status === 'detected' ? analyse(selected) : navigate(`/app/incidents/${selected.id}`)),
       }]
     : []

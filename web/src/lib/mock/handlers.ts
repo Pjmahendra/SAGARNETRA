@@ -1,6 +1,6 @@
 import {
   AUDIT, DETECT_RESULTS, HEALTH, INCIDENTS, INCIDENT_DETAIL, OVERVIEW, REPORTS, SAMPLES,
-  SECTOR_DETECTIONS, SECTORS, USERS, VESSELS, publicUser,
+  SECTOR_DETECTIONS, SECTORS, USERS, VESSELS, publicUser, slickPolygon,
 } from './data'
 
 export class MockError extends Error {
@@ -100,7 +100,13 @@ export async function mockHandle<T>(method: string, path: string, body?: unknown
     if (m[1] === INCIDENT_DETAIL.id) return INCIDENT_DETAIL as T
     const inc = INCIDENTS.find((i) => i.id === m![1])
     if (!inc) throw new MockError(404, 'Incident not found')
-    return { ...INCIDENT_DETAIL, ...inc, ranking: [], events: [], origin_zones: [], polygon: [] } as T
+    // Same treatment as the API: a catalogue spill still gets an outline matching its area,
+    // so it draws as a slick rather than a bare dot.
+    const n = Number(inc.id.slice(-2)) || 0
+    return {
+      ...INCIDENT_DETAIL, ...inc, ranking: [], events: [], origin_zones: [],
+      polygon: slickPolygon(inc.centroid, inc.area_km2, (n * 37) % 180, n % 7),
+    } as T
   }
   m = path.match(/^\/api\/vessels\/(\d+)$/)
   if (m && method === 'GET') {

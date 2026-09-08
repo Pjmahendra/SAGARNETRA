@@ -100,6 +100,44 @@ export const RANKING: RankingRow[] = [
   ),
 ].sort((a, b) => b.score - a.score)
 
+
+/**
+ * A plausible slick outline around a centroid with exactly the stated area, mirroring
+ * `slick_polygon` in backend/scripts/demo_scenario.py so mock mode and the API agree.
+ *
+ * The recorded spills are catalogue entries: a position and an area, with no stored mask. Without
+ * an outline the map draws a bare dot, which reads as "nothing found" beside a stated 0.7 km².
+ * Nothing is invented that the record does not already state, and the shape is deterministic.
+ */
+export function slickPolygon(centroid: LonLat, areaKm2: number, headingDeg = 0, seed = 0, ratio = 5.5, n = 30): LonLat[] {
+  const [lon0, lat0] = centroid
+  if (!areaKm2) return []
+  const b = Math.sqrt(areaKm2 / (Math.PI * ratio))
+  const a = ratio * b
+  const th = (headingDeg * Math.PI) / 180
+
+  const pts: [number, number][] = []
+  for (let i = 0; i < n; i++) {
+    const t = (2 * Math.PI * i) / n
+    const wob = 1 + 0.13 * Math.sin(3 * t + seed) + 0.06 * Math.sin(5 * t + 2 * seed)
+    pts.push([a * Math.cos(t) * wob, b * Math.sin(t) * wob])
+  }
+  // Rescale so the drawn area equals the number shown next to it.
+  let sh = 0
+  for (let i = 0; i < n; i++) { const j = (i + 1) % n; sh += pts[i][0] * pts[j][1] - pts[j][0] * pts[i][1] }
+  const k = Math.abs(sh) / 2 ? Math.sqrt(areaKm2 / (Math.abs(sh) / 2)) : 1
+
+  const kmPerDegLat = 110.574
+  const kmPerDegLon = 111.320 * Math.cos((lat0 * Math.PI) / 180)
+  const ring: LonLat[] = pts.map(([along, across]) => {
+    const north = k * (along * Math.cos(th) - across * Math.sin(th))
+    const east = k * (along * Math.sin(th) + across * Math.cos(th))
+    return [+(lon0 + east / kmPerDegLon).toFixed(6), +(lat0 + north / kmPerDegLat).toFixed(6)] as LonLat
+  })
+  ring.push(ring[0])
+  return ring
+}
+
 export const INCIDENTS: Incident[] = [
   { id: 'inc-041', code: 'INC-2026-041', status: 'investigating', zone: 'Gujarat Offshore Lane', zone_id: 'z-guj', detected_at: ACQ, area_km2: 4.21, confidence: 0.91, engine: 'unet', centroid: SLICK_CENTROID, top_tier: 'prime', top_vessel: 'MT SAURASHTRA PRIDE', assigned_to: 'Lt. A. Menon', is_demo: true },
   { id: 'inc-040', code: 'INC-2026-040', status: 'closed', zone: 'Mumbai Approaches', zone_id: 'z-mum', detected_at: '2026-08-29T01:05:00Z', area_km2: 1.37, confidence: 0.64, engine: 'heuristic', centroid: [72.61, 18.84], top_tier: 'poi', top_vessel: 'MV WESTERN GLORY', assigned_to: 'Lt. A. Menon', is_demo: true },
