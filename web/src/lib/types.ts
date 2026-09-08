@@ -27,9 +27,14 @@ export type LonLat = [number, number]
 export interface ZoneStatus {
   id: string
   name: string
+  /** Present on the admin endpoint; the officer overview omits it. */
+  region?: Region | null
   last_scene_at: string | null
   vessels_now: number
 }
+
+/** The five Indian Coast Guard regions, plus the European liaison sector. */
+export type Region = 'West' | 'North-West' | 'East' | 'North-East' | 'A&N' | 'Europe'
 
 export interface ActivityItem {
   id: string

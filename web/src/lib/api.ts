@@ -1,6 +1,6 @@
 import type {
   AdminUser, AuditEntry, DetectResult, DetectSample, Health, Incident, IncidentDetail, IncidentStatus, LoginResponse, LookalikeReason,
-  ModelInfo, Overview, Report, SectorDetail, SectorSummary, User, VerifyDecision, Vessel, ZoneStatus,
+  ModelInfo, Overview, Region, Report, Role, SectorDetail, SectorSummary, User, VerifyDecision, Vessel, ZoneStatus,
 } from './types'
 import { MockError, mockHandle } from './mock/handlers'
 
@@ -100,4 +100,11 @@ export const api = {
   adminUsers: () => request<AdminUser[]>('GET', '/api/admin/users'),
   adminAudit: () => request<AuditEntry[]>('GET', '/api/admin/audit'),
   adminZones: () => request<ZoneStatus[]>('GET', '/api/admin/zones'),
+  adminCreateUser: (body: { email: string; name: string; role: Role; org: string; region: Region | null; zone_ids: string[] }) =>
+    request<{ user: AdminUser; temp_password: string }>('POST', '/api/admin/users', body),
+  adminPatchUser: (id: string, patch: Partial<{ name: string; role: Role; org: string; region: Region | null; zone_ids: string[]; active: boolean }>) =>
+    request<AdminUser>('PATCH', `/api/admin/users/${id}`, patch),
+  adminResetPassword: (id: string) => request<{ temp_password: string }>('POST', `/api/admin/users/${id}/reset-password`),
+  adminCreateZone: (body: { name: string; region: Region; geometry: unknown }) =>
+    request<ZoneStatus>('POST', '/api/admin/zones', body),
 }
