@@ -26,3 +26,6 @@ ml/runs/
 .DS_Store
 .idea/
 .vscode/
+
+# live AIS recorder log (scripts/ais_collector.py)
+backend/ais.log
