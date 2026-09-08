@@ -710,7 +710,35 @@ SAMPLES = [
         "image_url": "/sar/kut-04.png",
         "synthetic": True,
     },
+    # ---- Dover Strait -----------------------------------------------------------------------
+    # These two exist so the live-AIS officer has a sector to *work*, not just a vessel list.
+    # `acquired_at` is set by the seed to sit at the end of the actual AIS recording, because the
+    # whole point of a Dover case is that the backtrack runs against real recorded tracks: a
+    # hardcoded date would fall outside the recording and rank nobody.
+    {
+        "_id": "dov-05",
+        "label": "Dover Strait, northbound lane",
+        "scene": "S1A_IW_GRDH 7A44 · tile 5",
+        "acquired_at": None,
+        "bbox": [1.40, 50.90, 1.65, 51.10],
+        "image_url": "/sar/dov-05.png",
+        "synthetic": True,
+    },
+    {
+        "_id": "dov-06",
+        "label": "Belgian approach, clean sea",
+        "scene": "S1A_IW_GRDH 7A44 · tile 9",
+        "acquired_at": None,
+        "bbox": [1.90, 51.20, 2.15, 51.40],
+        "image_url": "/sar/dov-06.png",
+        "synthetic": True,
+    },
 ]
+
+#: Tiles whose acquisition time the seed pins to the live AIS recording rather than a fixed date.
+LIVE_SAMPLE_IDS = ["dov-05", "dov-06"]
+#: The Dover case: confirmed, promoted to an incident, ranked against real vessels.
+DOVER_SAMPLE = "dov-05"
 
 # File each sample tile under the sector its footprint sits in, so the detection console can show
 # an officer the scenes for their own region instead of every tile in the country.

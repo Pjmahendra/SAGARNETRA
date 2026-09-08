@@ -31,6 +31,10 @@ def snapshot(inc: dict) -> dict:
         "centroid": inc.get("centroid"),
         "status": inc.get("status"),
         "is_demo": inc.get("is_demo", False),
+        # Frozen because the pack states it in words. Without it a Dover pack, whose ranking is
+        # built entirely from real recorded AIS, would carry the boilerplate saying its vessel
+        # history is a scenario — a false statement in a document meant to be evidence.
+        "ais_source": inc.get("ais_source", "scenario"),
         "ranked_count": len(ranking),
         "candidates_considered": inc.get("candidates_considered"),
         "top_vessel": top["name"] if top else None,

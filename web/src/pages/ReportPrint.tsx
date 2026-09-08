@@ -60,10 +60,30 @@ export default function ReportPrint() {
           </div>
         </header>
 
+        {/* Provenance, stated exactly. The two cases differ in opposite directions — a Gujarat pack
+            is ranked against a written scenario, a Dover pack against hundreds of genuinely
+            recorded hulls — so one sentence cannot cover both, and getting it backwards in a
+            document meant as evidence is worse than saying nothing. Read from the snapshot, so a
+            pack keeps the wording that was true when it was filed. */}
         {s.is_demo && (
           <div className="mb-5 rounded border border-line bg-surface-2 px-3 py-2 text-xs text-ink-2">
-            <strong className="text-ink">Demonstration incident.</strong> The satellite tile, weather and drift calculation are real.
-            The vessel history for this case is a labelled scenario used for evaluation, not a recorded historical track.
+            {s.ais_source === 'live' ? (
+              <>
+                <strong className="text-ink">Real AIS, placeholder tile — no discharge is alleged.</strong> The vessel
+                positions, tracks and identities below were recorded live from AIS and are genuine, as are the weather
+                and the drift calculation. The SAR tile is a synthetic placeholder: no Sentinel-1 scene is bundled for
+                this sector, so the slick outline and its area are illustrative and the imagery must not be read as
+                satellite data. <strong className="text-ink">No spill is known to have occurred at this location.</strong>{' '}
+                The named vessels are listed solely to demonstrate the correlation step against real traffic, and
+                nothing here is a finding against any of them.
+              </>
+            ) : (
+              <>
+                <strong className="text-ink">Demonstration incident.</strong> The satellite tile, weather and drift
+                calculation are real. The vessel history for this case is a labelled scenario used for evaluation,
+                not a recorded historical track.
+              </>
+            )}
           </div>
         )}
 

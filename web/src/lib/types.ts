@@ -240,6 +240,8 @@ export interface ReportSnapshot {
   centroid: LonLat
   status: IncidentStatus
   is_demo: boolean
+  /** What the ranking was computed against: real recorded AIS, or the seeded reconstruction. */
+  ais_source?: 'live' | 'scenario' | 'mixed' | 'none' | 'unknown'
   ranked_count: number
   candidates_considered: number | null
   top_vessel: string | null
