@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
-import { AnimatePresence, motion } from 'motion/react'
+import { motion } from 'motion/react'
 import { ChevronDown, FileText, LogOut, ScanSearch, ShieldCheck, Ship, Siren } from 'lucide-react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
+import { NavLink, Outlet, useNavigate } from 'react-router'
 import type { LucideIcon } from 'lucide-react'
 import { hasRole, useAuth } from '../auth/store'
 import { api, MOCK_MODE } from '../lib/api'
 import { cn } from '../lib/cn'
 import { useUi } from '../store/ui'
-import { EASE, EASE_OUT, DUR } from '../lib/motion'
+import { DUR, EASE } from '../lib/motion'
 
 const NAV: { to: string; label: string; end?: boolean; Icon?: LucideIcon }[] = [
   { to: '/app', label: 'Dashboard', end: true },
@@ -49,7 +49,6 @@ function Dot({ ok, label, detail }: { ok: boolean | null; label: string; detail:
 export default function AppShell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const { pathname } = useLocation()
   const { zoneId, setZone } = useUi()
   const health = useQuery({ queryKey: ['health'], queryFn: api.health, refetchInterval: 30_000 })
   const overview = useQuery({ queryKey: ['overview'], queryFn: api.overview })
@@ -147,20 +146,8 @@ export default function AppShell() {
         </div>
       </header>
 
-      {/* The curtain hides the swap; this is what it uncovers. Keyed on the path so each page
-          arrives with the same short rise, which is the second layer of the same reveal rather
-          than a competing animation. */}
       <main className="min-h-0 overflow-auto">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={pathname}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: DUR.base, ease: EASE_OUT }}
-          >
-            <Outlet />
-          </motion.div>
-        </AnimatePresence>
+        <Outlet />
       </main>
     </div>
   )

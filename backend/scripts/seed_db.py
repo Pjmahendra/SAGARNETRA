@@ -198,6 +198,14 @@ async def seed_demo_incident(db, officer: dict) -> None:
     # An already-exported evidence pack, so the Reports page has something real on a fresh seed.
     # Built through the same service the export endpoint uses, so a seeded pack and an officer's
     # pack are byte-identical in shape — no fixture to drift out of sync with the incident.
+    # Each seed makes a NEW demo incident, so reports filed against previous ones were left
+    # pointing at incidents that no longer exist — the Reports page listed them and every one
+    # opened as "Report not found". Drop any report whose incident is gone, not just this one's.
+    live = {i["_id"] async for i in db.incidents.find({}, {"_id": 1})}
+    orphans = [r["_id"] async for r in db.reports.find({}, {"incident_id": 1}) if r["incident_id"] not in live]
+    if orphans:
+        await db.reports.delete_many({"_id": {"$in": orphans}})
+        print(f"reports: removed {len(orphans)} orphaned by earlier seeds")
     await db.reports.delete_many({"incident_id": inc["_id"]})
     report = reports.build(inc, by_name=officer["name"], by_id=officer["_id"], revision=1)
     await db.reports.insert_one(report)
