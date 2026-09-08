@@ -61,6 +61,7 @@ export async function mockHandle<T>(method: string, path: string, body?: unknown
     { name: 'LinkNet', miou: null, source: 'Krestenitis et al. 2019, Remote Sensing', published: true },
     { name: 'PSPNet', miou: null, source: 'Krestenitis et al. 2019, Remote Sensing', published: true },
     { name: 'ResNet-34 U-Net', miou: null, source: 'SkyTruth Cerulean (production; IoU not published)', published: true },
+    { name: 'U-Net ResNet-34 (pretrained)', miou: 0.79, source: 'Pretrained checkpoint (Kaggle); expects 2-ch VV+VH SAR', published: true },
   ] } as T
   if (key === 'GET /api/reports') return REPORTS as T
   const rp = /^\/api\/reports\/([^/]+)$/.exec(path)

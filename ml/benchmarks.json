@@ -35,6 +35,13 @@
       "iou": {},
       "source": "SkyTruth Cerulean (production system; segmentation IoU not publicly reported)",
       "published": true
+    },
+    {
+      "name": "U-Net ResNet-34 (pretrained)",
+      "miou": 0.79,
+      "iou": {"oil": 0.61},
+      "source": "Pretrained checkpoint (Kaggle daryanikitina); obtained + loaded, expects 2-ch VV+VH SAR",
+      "published": true
     }
   ]
 }
