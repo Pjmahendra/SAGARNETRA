@@ -19,6 +19,9 @@ async def client():
     app = create_app()
     async with app.router.lifespan_context(app):
         db = app.state.db
+        # mongomock ignores the TTL index's partialFilterExpression (source == "live") and would expire the
+        # dated scenario positions the suite seeds, making tests fail once they are a week old.
+        await db.ais_positions.drop_index("ts_1")
         await create_user(
             db, email="admin@test.in", name="Admin", password="Admin@12345", role="admin", must_change_password=False
         )
