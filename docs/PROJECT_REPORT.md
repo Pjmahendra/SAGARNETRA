@@ -1,7 +1,7 @@
 # SAGARNETRA — Project & Engineering Report
 
 *Maritime oil-spill intelligence for the Indian Coast Guard*
-**Problem statement SIH26143 · Team AZIMUTH · SRM University–AP · Smart India Hackathon 2026**
+**Problem statement SIH26143 · Team SUPERHEROES · SRM University–AP · Smart India Hackathon 2026**
 
 > Every figure in this document was verified against branch `officer-command-view` at `e0e5cac` and
 > the live database on 8 September 2026 — not written from memory. Model metrics are read from

@@ -106,7 +106,7 @@ export default function Landing() {
       </section>
 
       <footer className="mx-auto max-w-6xl px-6 py-8 text-xs text-ink-3">
-        Team AZIMUTH · Prior art acknowledged: SkyTruth Cerulean. Our contribution is the Indian-waters look-alike model, drift backtracking, a single calibrated score and the Coast Guard workflow.
+        Team SUPERHEROES · Prior art acknowledged: SkyTruth Cerulean. Our contribution is the Indian-waters look-alike model, drift backtracking, a single calibrated score and the Coast Guard workflow.
       </footer>
     </div>
   )

@@ -3,7 +3,7 @@
 **Smart India Hackathon 2026 · Problem Statement SIH26143**
 *Leveraging satellite imagery to determine oil spills at sea along with AIS data correlations to identify vessel responsible for the spill*
 
-Team **AZIMUTH** · Theme: Space Technology · Category: Software
+Team **SUPERHEROES** · Theme: Space Technology · Category: Software
 
 ---
 

@@ -1,12 +1,12 @@
 # SAGARNETRA
 
-Maritime oil-spill intelligence platform for Smart India Hackathon 2026, problem statement SIH26143. Team AZIMUTH.
+Maritime oil-spill intelligence platform for Smart India Hackathon 2026, problem statement SIH26143. Team SUPERHEROES.
 
 One pipeline, end to end: Sentinel-1 SAR scene → U-Net detects the slick → geolocate + drift backtrack to origin zones → AIS ships in those zones → categorise + explainable risk ranking → officer evidence pack (inspection targeting, not culprit attribution).
 
 ## Where the truth lives
 
-- `docs/build-plan.html` and `docs/SAGARNETRA_Build_Plan.pdf`: the full build plan (roles, features, every module's stack, data model, API, 10-week schedule, demo script). Read this before changing architecture.
+- `docs/build-plan.html` (the PDF copy was removed; the HTML is canonical): the full build plan (roles, features, every module's stack, data model, API, 10-week schedule, demo script). Read this before changing architecture.
 - `docs/DECISIONS.md`: dated log of locked decisions. Append, never rewrite.
 - `docs/research.md`: verified research dossier. Cerulean (SkyTruth) is prior art; our differentiators are inspection-targeting framing, look-alike discrimination for Indian waters, drift backtrack, one fused calibrated score, Indian Coast Guard workflow.
 
