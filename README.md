@@ -196,7 +196,6 @@ docs/        Architecture, decisions, research, report, submission deck
 | [Decision log](docs/DECISIONS.md) | Dated record of every locked decision |
 | [Research dossier](docs/research.md) | Prior art (SkyTruth Cerulean), datasets, standards |
 | [Build plan](docs/build-plan.html) | Original plan: roles, modules, API, demo script |
-| [SIH deck](docs/submission/SAGARNETRA_SIH26143_Deck_6Page.pptx) | The 6-slide submission deck |
 
 ## Roadmap
 
